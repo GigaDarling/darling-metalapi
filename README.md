@@ -4,9 +4,10 @@
 Indium и Vulkan. Компиляция MSL из исходного текста через mslc, простые фигуры,
 анимация и проверка результата чтением пикселей с GPU.
 
-![Квадрат, круг и кольцо в реальном окне Darling](docs/media/shapes-window.png)
+![Анимация квадрата, круга и кольца в реальном окне Darling](docs/media/shapes-animation.gif)
 
 **[Видео реального окна — MP4](docs/media/shapes-animation.mp4)** ·
+**[Скриншот](docs/media/shapes-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/japNslow/darling-metalapi/releases)**
 
 ## Что работает
