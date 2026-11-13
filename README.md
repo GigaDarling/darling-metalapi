@@ -28,9 +28,32 @@ mslc, адаптацию buffer reflection, исправление ранней 
 и проверяемое демо. Это не полная реализация Metal.
 
 Textures/samplers в source bridge и пользовательские compile options пока
-возвращают Unsupported. Сглаживание, прозрачность и 3D не заявляются как
+возвращают Unsupported. Сглаживание и прозрачность не заявляются как
 проверенные возможности этой демонстрации. [Карта возможностей](docs/UPSTREAM-STUDY.md).
 Результаты проверки релиза — в [VALIDATION.md](VALIDATION.md).
+
+## Новая 3D-сцена из исходников
+
+В текущие исходники добавлен вращающийся цветной куб: 24 вершины, 36 индексов,
+перспектива 55°, GPU-вращение вокруг двух осей и depth buffer Depth32Float.
+![Вращающийся 3D-куб в настоящем окне Darling](docs/media/cube-animation.gif)
+
+После сборки из исходников запустите:
+
+```sh
+python3 run.py cube-window \
+  --darling-prefix work/darling/build/metal-baseline/prefix \
+  --demo work/darling/build/metal-baseline/darling/src/tools/metal-baseline-demo \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+Для проверки доступны `cube-offscreen` и `cube-window-test`.
+Проверены четыре момента анимации, разные пропорции кадра, обратный порядок
+граней и обнаружение отключённого depth test. Каждый порядок рисования дал
+ноль несовпадений на 1 212 376 пикселях вне зоны рёбер. Подробнее —
+[demo/README.md](demo/README.md#rotating-3d-cube).
+Готовый архив v0.1.0 содержит предыдущую 2D-демонстрацию; для куба нужна
+сборка текущих исходников.
 
 ## Готовая сборка v0.1.0
 

@@ -1,15 +1,62 @@
-# Metal preparation, shapes and animation: steps 1–6
+# Metal preparation, shapes and a rotating 3D cube
 
 This directory contains a native preparation check and a Mach-O client using
 public Metal, MetalKit and AppKit APIs. The runtime client checks an offscreen
 frame, or displays a triangle through MTKView/CAMetalLayer in an X11 window.
 The shapes modes draw a square, a filled circle and a ring, with time-based
 translation, rotation, scale and color changes through Metal vertex buffers.
+The cube modes add indexed 3D geometry, perspective, GPU rotation about two axes
+and depth-tested occlusion using an explicit Depth32Float attachment.
 Generated files, the compiler checkout and isolated runtime prefixes live under
 `build/metal-baseline/`. No system installation is performed.
 
 The separate clean upstream checkout and a capability map for future work are
 documented in [UPSTREAM-STUDY.md](UPSTREAM-STUDY.md).
+
+## Rotating 3D cube
+
+From the Darling repository root, after building the demo:
+
+```sh
+python3 tools/metal-baseline/run-render.py cube-window \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+python3 tools/metal-baseline/run-render.py cube-offscreen \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+python3 tools/metal-baseline/run-render.py cube-window-test \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+The independently authored cube uses 24 position/color vertices and 36 uint16
+indices for six colored faces. MSL applies yaw and pitch from elapsed seconds,
+then a 55-degree vertical perspective projection with a [0,1] depth range.
+Geometry stays in buffer 3; the aspect ratio, projection and time use buffer 7.
+The renderer uses public Metal APIs throughout. It creates its own depth texture
+because MTKView's automatic depth attachment remains unimplemented. That texture
+is reused between frames and replaced when the drawable size changes.
+No additional framework or Vulkan backend changes were needed for this scene.
+
+`cube-offscreen` checks t = 0.0, 0.7, 1.4 and 2.1 seconds, at 640x480 and
+480x640. The reference intersects camera rays with the six planes of a box,
+independently of the indexed mesh and GPU rasterizer. It checks every pixel
+except a 1.5-pixel band near face boundaries/silhouettes. The two face submission
+orders must agree away from that band: coincident edge samples do not have a
+unique face color under a Less depth comparison. Both orders are compared with
+the analytic reference. Negative controls must reject a blank image and a draw
+with Always comparison and disabled depth writes.
+
+Verified on Intel Iris Xe on 2026-11-13: each order checked 1,212,376 pixels
+across four frames with zero mismatches; disabling depth comparison was detected
+at all four times. Two or three faces were visible in each frame. The window
+test submitted 180 frames, resized 900x560 → 900x600 → 640x420, and closed
+cleanly. Existing shapes and triangle offscreen regressions also passed.
+This does not constitute general validation of every depth/indexed-draw API.
+
+Sources: public [indexed draw](https://developer.apple.com/documentation/metal/mtlrendercommandencoder/drawindexedprimitives(type:indexcount:indextype:indexbuffer:indexbufferoffset:)),
+[depth attachment](https://developer.apple.com/documentation/metal/mtlrenderpassdepthattachmentdescriptor)
+and [depth comparison](https://developer.apple.com/documentation/metal/mtldepthstencildescriptor/depthcomparefunction)
+contracts, the open mslc C API and existing Indium interfaces. No restricted
+Apple source was used. Results and captured media live in
+`build/metal-baseline/results/cube-*`.
 
 Validated locally on 2026-11-13 with Clang/LLVM 23.1.5. The available device was
 Mesa llvmpipe (CPU), Vulkan 1.4.354. Vulkan 1.3, timeline semaphores, buffer device

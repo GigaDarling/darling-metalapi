@@ -11,10 +11,12 @@
 #include "metal-baseline-source.h"
 #include "scene-validation.hpp"
 #include <string>
+#import "cube-renderer.h"
 
 static MTLClearColor background() { return MTLClearColor {0.04, 0.06, 0.10, 1.0}; }
 static BOOL windowChecks = NO;
 static BOOL shapesMode = NO;
+static BOOL cubeMode = NO;
 static void expectMetal(bool condition, const char* message) {
     if (!condition) { std::fprintf(stderr, "FAIL %s\n", message); std::exit(1); }
 }
@@ -41,9 +43,11 @@ static void expectMetal(bool condition, const char* message) {
     NSUInteger _shapeVertexCounts[3];
     CFTimeInterval _animationStart;
     NSUInteger _lastCheckFrames;
+    CubeRenderer* _cube;
 }
 - (void)verifyOffscreen: (const char*)path;
 - (void)verifyShapes: (const char*)path;
+- (void)verifyCube: (const char*)path;
 @end
 
 @implementation BaselineRenderer
@@ -125,9 +129,12 @@ static void expectMetal(bool condition, const char* message) {
         "unsupported source texture and sampler arguments report an error");
     std::printf("PASS source buffer reflection and compute readback at index 5\n");
     if (shapesMode) [self prepareShapes];
+    if (cubeMode) _cube = [[CubeRenderer alloc] initWithDevice: _device queue: _queue];
     std::printf("PASS public source compilation, function lookup, errors and pipeline\n");
     return self;
 }
+
+- (void)verifyCube: (const char*)path { [_cube verifyOffscreen: path]; }
 
 - (void)prepareShapes {
     NSError* error = nil;
@@ -284,11 +291,12 @@ static void expectMetal(bool condition, const char* message) {
 - (void)applicationDidFinishLaunching: (NSNotification*)notification {
     (void)notification;
     _animationStart = CACurrentMediaTime();
-    NSSize initialSize = shapesMode ? NSMakeSize(900, 560) : NSMakeSize(720, 480);
+    NSSize initialSize = (shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480);
     _window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, initialSize.width, initialSize.height)
         styleMask: NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask
         backing: NSBackingStoreBuffered defer: NO];
-    [_window setTitle: shapesMode ? @"Darling Metal - Shapes in motion" : @"Darling Metal - Render verification"];
+    [_window setTitle: cubeMode ? @"Darling Metal - Rotating 3D cube" :
+        shapesMode ? @"Darling Metal - Shapes in motion" : @"Darling Metal - Render verification"];
     [_window setReleasedWhenClosed: NO];
     [_window setDelegate: self];
     _view = [[MTKView alloc] initWithFrame: NSMakeRect(0, 0, initialSize.width, initialSize.height) device: _device];
@@ -310,7 +318,7 @@ static void expectMetal(bool condition, const char* message) {
 - (void)checkWindow: (NSTimer*)timer {
     expectMetal(_frames > _lastCheckFrames, "window keeps submitting frames");
     _lastCheckFrames = _frames;
-    const NSSize expected[] = {shapesMode ? NSMakeSize(900, 560) : NSMakeSize(720, 480),
+    const NSSize expected[] = {(shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480),
         NSMakeSize(900, 600), NSMakeSize(640, 420)};
     NSSize size = expected[_windowCheckStep];
     expectMetal(NSEqualSizes(_view.bounds.size, size), "window content follows resize");
@@ -330,7 +338,9 @@ static void expectMetal(bool condition, const char* message) {
     id<CAMetalDrawable> drawable = view.currentDrawable;
     if (!drawable) return;
     id<MTLCommandBuffer> command = [_queue commandBuffer];
-    if (shapesMode)
+    if (cubeMode)
+        [_cube encode: command texture: drawable.texture time: CACurrentMediaTime() - _animationStart];
+    else if (shapesMode)
         [self encodeShapes: command texture: drawable.texture time: CACurrentMediaTime() - _animationStart];
     else
         [self encode: command texture: drawable.texture triangle: YES];
@@ -345,6 +355,7 @@ static void expectMetal(bool condition, const char* message) {
     [NSApp terminate: nil];
 }
 - (void)dealloc {
+    [_cube release];
     for (id<MTLBuffer> buffer : _shapeBuffers) [buffer release];
     [_shapePipeline release];
     [_view release]; [_window release]; [_pipeline release]; [_queue release]; [_device release];
@@ -354,18 +365,23 @@ static void expectMetal(bool condition, const char* message) {
 
 int main(int argc, char** argv) {
     @autoreleasepool {
-        expectMetal(argc == 2 || argc == 3, "Usage: metal-baseline-demo --offscreen/--shapes-offscreen image.ppm | --window/--shapes-window | --window-test/--shapes-window-test");
+        expectMetal(argc == 2 || argc == 3, "Usage: metal-baseline-demo --[shapes-/cube-]offscreen image.ppm | --[shapes-/cube-]window | --[shapes-/cube-]window-test");
         shapesMode = std::strncmp(argv[1], "--shapes-", 9) == 0;
-        windowChecks = std::strcmp(argv[1], "--window-test") == 0 || std::strcmp(argv[1], "--shapes-window-test") == 0;
-        if (std::strcmp(argv[1], "--window") == 0 || std::strcmp(argv[1], "--shapes-window") == 0 || windowChecks) {
+        cubeMode = std::strncmp(argv[1], "--cube-", 7) == 0;
+        windowChecks = std::strcmp(argv[1], "--window-test") == 0 || std::strcmp(argv[1], "--shapes-window-test") == 0 ||
+                       std::strcmp(argv[1], "--cube-window-test") == 0;
+        if (std::strcmp(argv[1], "--window") == 0 || std::strcmp(argv[1], "--shapes-window") == 0 ||
+            std::strcmp(argv[1], "--cube-window") == 0 || windowChecks) {
             NSApplication* app = [NSApplication sharedApplication];
             BaselineRenderer* renderer = [[BaselineRenderer alloc] init];
             [app setDelegate: renderer]; [app run]; [renderer release];
         } else {
             expectMetal(argc == 3 && (std::strcmp(argv[1], "--offscreen") == 0 ||
-                        std::strcmp(argv[1], "--shapes-offscreen") == 0), "invalid demo arguments");
+                        std::strcmp(argv[1], "--shapes-offscreen") == 0 ||
+                        std::strcmp(argv[1], "--cube-offscreen") == 0), "invalid demo arguments");
             BaselineRenderer* renderer = [[BaselineRenderer alloc] init];
-            if (shapesMode) [renderer verifyShapes: argv[2]];
+            if (cubeMode) [renderer verifyCube: argv[2]];
+            else if (shapesMode) [renderer verifyShapes: argv[2]];
             else [renderer verifyOffscreen: argv[2]];
             [renderer release];
         }

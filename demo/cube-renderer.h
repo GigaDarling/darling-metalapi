@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#import <Metal/Metal.h>
+
+@interface CubeRenderer : NSObject {
+    id<MTLDevice> _device;
+    id<MTLCommandQueue> _queue;
+    id<MTLRenderPipelineState> _pipeline;
+    id<MTLBuffer> _vertices, _indices;
+    id<MTLDepthStencilState> _depthState, _alwaysState;
+    id<MTLTexture> _depthTexture;
+}
+- (instancetype)initWithDevice: (id<MTLDevice>)device queue: (id<MTLCommandQueue>)queue;
+- (void)encode: (id<MTLCommandBuffer>)command texture: (id<MTLTexture>)texture time: (float)time;
+- (void)verifyOffscreen: (const char*)path;
+@end
