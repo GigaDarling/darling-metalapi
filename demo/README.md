@@ -196,7 +196,7 @@ texture with Metal's getBytes API. It also checks source compilation, function
 names, shader stages, invalid-source NSError handling and a null error output.
 It executes a buffer-writing compute shader at Metal buffer index 5 and checks
 its result, in addition to rejecting custom compilation options.
-Texture/sampler source arguments remain explicitly rejected with an unsupported error.
+Sampled texture and explicit sampler source arguments are supported; storage textures and embedded samplers remain unsupported.
 `window-test` exercises MTKView resizing and closes after three size checks.
 `window` remains open until closed. The client additionally tests an NSView
 subclass requesting its backing layer before super's initializer, independently
@@ -294,3 +294,42 @@ takes `.metallib`. No undocumented public symbols or application checks were add
 - Metal submodule: `51bc1937a0cd6472458d084dfe3ba3ca3b4ea3a4`.
 - No restricted Apple source, proprietary disassembly, or application-specific
   workaround informed these new files. CoreCrypto was not inspected or changed.
+
+## Concrete / wood material preview — 2026-11-14
+
+```sh
+python3 tools/metal-baseline/run-render.py textures-window --icd /usr/share/vulkan/icd.d/intel_icd.json
+python3 tools/metal-baseline/run-render.py textures-offscreen --icd /usr/share/vulkan/icd.d/intel_icd.json
+python3 tools/metal-baseline/run-render.py textures-window-test --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+Buttons select independently authored 512x512 procedural concrete or wood RGBA
+textures. The left quad and right rotating cube sample the same MTLTexture,
+with per-face UVs and linear filtering. Shader reflection now maps sampled
+textures and explicit samplers as well as buffers, preserving their separate
+Metal indices and Vulkan descriptor bindings. Storage textures and embedded
+samplers are explicitly unsupported.
+
+The asymmetric 2x2 test verifies upload, orientation, nearest and linear sampling.
+The material shader combines fragment buffer 6, texture 2 and sampler 4.
+Four material/time combinations matched a CPU bilinear sampler and ray-box UV
+reference at 129,422 sampled pixels, including 18,496 flat-preview and 28,996
+cube pixels. Using the other material as the reference must fail.
+Window checks exercise button actions, resizing and closing; the user also
+confirmed switching both materials with the mouse. The 3D cube and previous
+2D checks passed, as did all 16 native preparation commands.
+
+Two general fixes were needed: Indium's negative-height Vulkan viewport now
+adds originY when locating its lower edge; MTKView initializes drawableSize from
+its preferred size before a containing view has to resize it. AppKit now uses
+window coordinates for initial child-layer placement, consistently with its
+existing resize path. These fixes are in their owning layers, with no
+application-specific conditions. The baseline viewport library failed the
+material reference; the corrected transform passes it.
+
+Provenance: public Metal texture/sampler contracts, public MTKView drawableSize
+contract and Vulkan VkViewport documentation; open mslc/Indium interfaces.
+https://developer.apple.com/documentation/metal/mtlrendercommandencoder/setfragmenttexture(_:index:)
+https://developer.apple.com/documentation/metalkit/mtkview/drawablesize
+https://docs.vulkan.org/refpages/latest/refpages/source/VkViewport.html
+No restricted Apple source or third-party image assets were used.

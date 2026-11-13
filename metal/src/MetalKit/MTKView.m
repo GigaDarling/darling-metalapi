@@ -226,6 +226,9 @@
 	_preferredFramesPerSecond = 60;
 	_paused = NO;
 	_enableSetNeedsDisplay = NO;
+	// Initialize before the first frame, including when a container keeps the
+	// view's original frame and therefore never calls setFrame: on insertion.
+	self.drawableSize = self.preferredDrawableSize;
 
 	[self _resetTimer];
 }

@@ -24,7 +24,7 @@ static bool sourceReflectionIndex(id value, size_t& index) {
     return true;
 }
 
-static bool readSourceBuffers(NSDictionary* entry, Indium::FunctionReflection& function,
+static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection& function,
                               NSString** reason) {
     if ([entry[@"embedded_samplers"] count]) {
         *reason = @"Source compilation with embedded samplers is not supported yet";
@@ -33,30 +33,61 @@ static bool readSourceBuffers(NSDictionary* entry, Indium::FunctionReflection& f
     // Indium's address block follows member order, independently of the Metal
     // buffer indices. Preserve the compiler's explicit member mapping.
     std::map<size_t, Indium::BindingDescriptor> members;
-    std::set<size_t> indices;
+    std::set<std::pair<unsigned, size_t>> indices;
+    std::set<size_t> descriptors;
+    bool hasBuffers = false;
     for (id resource in entry[@"bindings"]) {
         if (![resource isKindOfClass: [NSDictionary class]] ||
-            ![resource[@"kind"] isEqual: @"Buffer"] ||
+            ![resource[@"kind"] isKindOfClass: [NSString class]] ||
             ![resource[@"descriptor"] isKindOfClass: [NSDictionary class]]) {
-            *reason = @"This source compiler bridge currently supports buffer resources only";
+            *reason = @"The source compiler returned an invalid resource description";
             return false;
         }
-        size_t index, member, set, binding;
+        size_t index, set, binding;
         if (!sourceReflectionIndex(resource[@"metal_index"], index) ||
-            !sourceReflectionIndex(resource[@"member"], member) ||
             !sourceReflectionIndex(resource[@"descriptor"][@"set"], set) ||
             !sourceReflectionIndex(resource[@"descriptor"][@"binding"], binding) ||
-            binding != 0 || set != (function.functionType == Indium::FunctionType::Fragment ? 1 : 0)) {
-            *reason = @"The source compiler returned an invalid buffer address mapping";
+            set != (function.functionType == Indium::FunctionType::Fragment ? 1 : 0)) {
+            *reason = @"The source compiler returned an invalid resource mapping";
             return false;
         }
         Indium::BindingDescriptor descriptor;
-        descriptor.type = Indium::BindingType::Buffer;
         descriptor.index = index;
-        if (!indices.insert(index).second || !members.emplace(member, descriptor).second) {
-            *reason = @"The source compiler returned duplicate buffer mappings";
+        descriptor.internalIndex = binding;
+        NSString* kind = resource[@"kind"];
+        if ([kind isEqual: @"Buffer"]) {
+            size_t member;
+            descriptor.type = Indium::BindingType::Buffer;
+            if (binding != 0 || !sourceReflectionIndex(resource[@"member"], member) ||
+                !members.emplace(member, descriptor).second) {
+                *reason = @"The source compiler returned an invalid buffer address mapping";
+                return false;
+            }
+            hasBuffers = true;
+        } else if ([kind isEqual: @"Texture"] || [kind isEqual: @"Sampler"]) {
+            descriptor.type = [kind isEqual: @"Texture"] ? Indium::BindingType::Texture : Indium::BindingType::Sampler;
+            if (descriptor.type == Indium::BindingType::Texture && ![resource[@"texture_access"] isEqual: @"Sample"]) {
+                *reason = @"Source storage texture access is not supported yet";
+                return false;
+            }
+            descriptor.textureAccessType = Indium::TextureAccessType::Sample;
+            if (!descriptors.insert(binding).second) {
+                *reason = @"The source compiler returned duplicate descriptor bindings";
+                return false;
+            }
+            function.bindings.push_back(descriptor);
+        } else {
+            *reason = @"The source compiler returned an unsupported resource kind";
             return false;
         }
+        if (!indices.emplace(static_cast<unsigned>(descriptor.type), index).second) {
+            *reason = @"The source compiler returned duplicate resource indices";
+            return false;
+        }
+    }
+    if (hasBuffers && descriptors.count(0)) {
+        *reason = @"A source resource overlaps the buffer address block";
+        return false;
     }
     for (size_t member = 0; member < members.size(); ++member) {
         auto found = members.find(member);
@@ -105,7 +136,7 @@ static bool readSourceReflection(NSDictionary* document, Indium::LibraryReflecti
             return false;
         }
         reflection.functions[name].functionType = type;
-        if (!readSourceBuffers(entry, reflection.functions[name], reason))
+        if (!readSourceResources(entry, reflection.functions[name], reason))
             return false;
         [names addObject: entry[@"name"]];
     }

@@ -4,7 +4,7 @@
 Indium и Vulkan. Компиляция MSL из исходного текста через mslc, простые фигуры,
 анимация и проверка результата чтением пикселей с GPU.
 
-![Анимация квадрата, круга и кольца в реальном окне Darling](docs/media/shapes-animation.gif)
+![Текстуры и вращающийся куб в настоящем окне Darling](docs/media/materials-animation.gif)
 
 **[Видео реального окна — MP4](docs/media/shapes-animation.mp4)** ·
 **[Скриншот](docs/media/shapes-window.png)** ·
@@ -27,8 +27,8 @@ Indium и Vulkan. Компиляция MSL из исходного текста 
 mslc, адаптацию buffer reflection, исправление ранней инициализации слоя NSView
 и проверяемое демо. Это не полная реализация Metal.
 
-Textures/samplers в source bridge и пользовательские compile options пока
-возвращают Unsupported. Сглаживание и прозрачность не заявляются как
+Source bridge поддерживает sampled textures и отдельные samplers. Storage textures,
+embedded samplers и пользовательские compile options пока возвращают Unsupported. Сглаживание и прозрачность не заявляются как
 проверенные возможности этой демонстрации. [Карта возможностей](docs/UPSTREAM-STUDY.md).
 Результаты проверки релиза — в [VALIDATION.md](VALIDATION.md).
 
@@ -52,10 +52,25 @@ python3 run.py cube-window \
 граней и обнаружение отключённого depth test. Каждый порядок рисования дал
 ноль несовпадений на 1 212 376 пикселях вне зоны рёбер. Подробнее —
 [demo/README.md](demo/README.md#rotating-3d-cube).
-Готовый архив v0.1.0 содержит предыдущую 2D-демонстрацию; для куба нужна
-сборка текущих исходников.
+Куб и выбор текстур включены в готовый архив v0.2.0.
 
-## Готовая сборка v0.1.0
+## Выбор текстур: бетон и дерево
+
+В режиме `textures-window` кнопки **1. Бетон** и **2. Дерево** переключают
+одну и ту же текстуру на плоском превью слева и вращающемся кубе справа.
+Процедурные RGBA-текстуры 512×512 написаны самостоятельно; на каждой грани
+размещены UV-координаты 0..1. Включены линейная фильтрация и depth buffer.
+
+[Бетон — кадр с GPU](docs/media/materials-concrete.png) ·
+[Дерево — кадр с GPU](docs/media/materials-wood.png)
+
+Проверены загрузка 2×2 с различимыми углами, nearest/linear, одновременные
+fragment buffer 6 / texture 2 / sampler 4, UV на кубе и переключение материалов.
+Четыре сцены дали ноль несовпадений с CPU-эталоном на 129 422 проверенных
+отсчётах. Проверка другим материалом намеренно обнаруживает расхождения.
+Режимы проверки: `textures-offscreen` и `textures-window-test`.
+
+## Готовая сборка v0.2.0
 
 В Releases находится **binary overlay Linux x86_64**, включающий Metal,
 MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
@@ -69,14 +84,14 @@ MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
 Runner использует rootless user namespaces, `unshare`, `setpriv`,
 `newuidmap`/`newgidmap` и настроенные subordinate UID/GID ranges.
 
-Распакуйте `darling-metalapi-v0.1.0-linux-x86_64.tar.gz`. В командах ниже
+Распакуйте `darling-metalapi-v0.2.0-linux-x86_64.tar.gz`. В командах ниже
 `/path/to/darling-prefix` — каталог установки Darling, содержащий `bin/darling`,
 а не пользовательский DPREFIX. Остановите приложения, использующие эту установку.
 
 ```sh
 python3 install-overlay.py --prefix /path/to/darling-prefix --dry-run
 python3 install-overlay.py --prefix /path/to/darling-prefix
-python3 run.py shapes-window --darling-prefix /path/to/darling-prefix \
+python3 run.py textures-window --darling-prefix /path/to/darling-prefix \
   --icd /usr/share/vulkan/icd.d/intel_icd.json
 ```
 

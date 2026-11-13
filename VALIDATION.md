@@ -1,4 +1,4 @@
-# v0.1.0 validation — 2026-11-13
+# v0.2.0 validation — 2026-11-14
 
 The release is an experimental Linux x86_64 binary overlay for the pinned
 Darling GUI runtime. The full runtime and host dependencies are not included.
@@ -35,3 +35,17 @@ font/backend notices and an unimplemented orderedWindowNumbers query on close.
 They do not change the recorded test outcomes. No compatibility with unrelated
 Darling versions, older host runtimes, other GPU combinations or arbitrary Metal
 applications is claimed.
+
+## Added in 0.2.0
+
+- Indexed 3D cube, perspective, GPU rotation and Depth32Float: both face orders
+  matched 1,212,376 reference pixels each, excluding a narrow edge band.
+- Concrete/wood flat preview and cube UV: four scenes, 129,422 sampled pixels,
+  zero mismatches; wrong-material negative controls rejected each scene.
+- Asymmetric 2x2 upload/orientation, nearest, linear and mixed fragment
+  buffer/texture/sampler descriptors passed.
+- Material buttons, resize and close passed the window test. The user independently
+  confirmed both materials switch with normal mouse clicks.
+- Fixed initial MTKView drawable size, initial child-layer window coordinates
+  and nonzero viewport originY in the correct framework/backend layers.
+- Native preparation commands and old triangle/shapes/cube checks passed.

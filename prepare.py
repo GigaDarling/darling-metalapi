@@ -26,7 +26,7 @@ def main():
         revision = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
         if revision != manifest[name]["revision"]:
             parser.error(f"{name}: expected {manifest[name]['revision']}, got {revision}")
-    for name in ("metal", "cocotron", "darlingserver"):
+    for name in ("metal", "cocotron", "darlingserver", "indium"):
         status = subprocess.check_output(["git", "-C", str(repositories[name]),
                                           "status", "--porcelain", "--untracked-files=normal"], text=True)
         if status:
@@ -38,7 +38,8 @@ def main():
         parser.error("initialize this repository's submodules first: git submodule update --init --recursive")
     patches = [(darling, "darling-tools.patch"),
                (repositories["cocotron"], "cocotron-layer-init.patch"),
-               (repositories["darlingserver"], "darlingserver-openssl4.patch")]
+               (repositories["darlingserver"], "darlingserver-openssl4.patch"),
+               (repositories["indium"], "indium-viewport.patch")]
     # Check every patch before making the first change.
     for path, patch in patches:
         subprocess.run(["git", "-C", str(path), "apply", "--check", str(ROOT / "patches" / patch)], check=True)

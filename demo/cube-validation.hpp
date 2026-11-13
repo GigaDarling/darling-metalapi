@@ -8,7 +8,8 @@
 namespace Cube {
 // Independent reference: intersect camera rays with six planes of a unit box.
 // It never reads the indexed mesh or emulates triangle rasterization.
-inline int rayFace(float px, float py, unsigned width, unsigned height, float time) {
+inline int rayFace(float px, float py, unsigned width, unsigned height, float time,
+                   std::array<double,3>* hit = nullptr) {
     const double yaw = 0.55 + double(time) * 0.63, pitch = 0.35 + double(time) * 0.37;
     const double cy = std::cos(yaw), sy = std::sin(yaw), cx = std::cos(pitch), sx = std::sin(pitch);
     auto inverseRotation = [&](std::array<double,3> p) {
@@ -30,6 +31,7 @@ inline int rayFace(float px, float py, unsigned width, unsigned height, float ti
                 if (other != axis && std::abs(origin[other] + t * direction[other]) > 1) inside = false;
             if (inside) {
                 nearest = t;
+                if (hit) for (unsigned i=0;i<3;++i) (*hit)[i]=origin[i]+t*direction[i];
                 face = axis == 2 ? (side > 0 ? 0 : 1) : axis == 0 ? (side > 0 ? 2 : 3) : (side > 0 ? 4 : 5);
             }
         }

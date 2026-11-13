@@ -9,7 +9,8 @@ import tempfile
 root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
-                                     "cube-offscreen", "cube-window", "cube-window-test"])
+                                     "cube-offscreen", "cube-window", "cube-window-test",
+                                     "textures-offscreen", "textures-window", "textures-window-test"])
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
 parser.add_argument("--output", type=Path, help="PPM output; defaults to offscreen.ppm or shapes.ppm in results")
 args = parser.parse_args()
@@ -29,7 +30,7 @@ command = ["unshare", "--user", "--map-auto", "--map-root-user", "--mount", "--p
            "--fork", "--mount-proc", "setpriv", "--clear-groups", str(launcher),
            "exec", str(demo), "--" + args.mode]
 if args.mode.endswith("offscreen"):
-    name = "cube.ppm" if args.mode.startswith("cube-") else "shapes.ppm" if args.mode.startswith("shapes-") else "offscreen.ppm"
+    name = "textures.ppm" if args.mode.startswith("textures-") else "cube.ppm" if args.mode.startswith("cube-") else "shapes.ppm" if args.mode.startswith("shapes-") else "offscreen.ppm"
     output = (args.output or build / "results" / name).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     command.append("/Volumes/SystemRoot" + str(output))

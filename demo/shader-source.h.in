@@ -4,3 +4,5 @@ static const char baselineShaderSource[] = R"BASELINE(@BASELINE_VERTEX_SOURCE@
 )BASELINE";
 static const char shapesShaderSource[] = R"BASELINE(@BASELINE_SHAPES_SOURCE@)BASELINE";
 static const char cubeShaderSource[] = R"BASELINE(@BASELINE_CUBE_SOURCE@)BASELINE";
+
+static const char materialsShaderSource[] = R"BASELINE(@BASELINE_MATERIALS_SOURCE@)BASELINE";

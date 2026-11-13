@@ -10,7 +10,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
-                                     "cube-offscreen", "cube-window", "cube-window-test"])
+                                     "cube-offscreen", "cube-window", "cube-window-test",
+                                     "textures-offscreen", "textures-window", "textures-window-test"])
 parser.add_argument("--darling-prefix", required=True, type=Path)
 parser.add_argument("--demo", type=Path, default=ROOT / "bin/metal-baseline-demo")
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
@@ -31,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="metalapi-") as temporary:
                "--fork", "--mount-proc", "setpriv", "--clear-groups", str(launcher),
                "exec", str(demo), "--" + args.mode]
     if args.mode.endswith("offscreen"):
-        name = "cube.ppm" if args.mode.startswith("cube-") else "shapes.ppm" if args.mode.startswith("shapes-") else "triangle.ppm"
+        name = "textures.ppm" if args.mode.startswith("textures-") else "cube.ppm" if args.mode.startswith("cube-") else "shapes.ppm" if args.mode.startswith("shapes-") else "triangle.ppm"
         output = (args.output or Path.cwd() / "results" / name).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         command.append("/Volumes/SystemRoot" + str(output))

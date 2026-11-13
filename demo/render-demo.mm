@@ -12,11 +12,13 @@
 #include "scene-validation.hpp"
 #include <string>
 #import "cube-renderer.h"
+#import "material-renderer.h"
 
 static MTLClearColor background() { return MTLClearColor {0.04, 0.06, 0.10, 1.0}; }
 static BOOL windowChecks = NO;
 static BOOL shapesMode = NO;
 static BOOL cubeMode = NO;
+static BOOL materialsMode = NO;
 static void expectMetal(bool condition, const char* message) {
     if (!condition) { std::fprintf(stderr, "FAIL %s\n", message); std::exit(1); }
 }
@@ -44,10 +46,14 @@ static void expectMetal(bool condition, const char* message) {
     CFTimeInterval _animationStart;
     NSUInteger _lastCheckFrames;
     CubeRenderer* _cube;
+    MaterialRenderer* _materials;
+    NSButton* _materialButtons[2];
+    NSTextField* _materialLabel;
 }
 - (void)verifyOffscreen: (const char*)path;
 - (void)verifyShapes: (const char*)path;
 - (void)verifyCube: (const char*)path;
+- (void)verifyMaterials: (const char*)path;
 @end
 
 @implementation BaselineRenderer
@@ -123,18 +129,32 @@ static void expectMetal(bool condition, const char* message) {
     expectMetal(readback == 1, "source buffer at a nonzero Metal index writes the expected value");
     [output release]; [compute release]; [function release]; [resourceLibrary release];
     error = nil;
+    id<MTLLibrary> sampled = [_device newLibraryWithSource:
+        @"#include <metal_stdlib>\nusing namespace metal;\nfragment float4 texture_probe(texture2d<float> image [[texture(2)]], sampler sampling [[sampler(4)]]) { return image.sample(sampling, float2(0.5f, 0.5f)); }"
+        options:nil error:&error];
+    expectMetal(sampled && !error,"source sampled texture and sampler resources compile");
+    [sampled release];
+    error=nil;
     expectMetal([_device newLibraryWithSource:
-        @"#include <metal_stdlib>\nusing namespace metal;\nfragment float4 texture_probe(texture2d<float> image [[texture(0)]], sampler sampling [[sampler(0)]]) { return image.sample(sampling, float2(0.5f, 0.5f)); }"
-        options: nil error: &error] == nil && error.code == MTLLibraryErrorUnsupported,
-        "unsupported source texture and sampler arguments report an error");
+        @"#include <metal_stdlib>\nusing namespace metal;\nfragment float4 embedded_probe(texture2d<float> image [[texture(0)]]) { constexpr sampler filtering(coord::normalized, address::repeat, filter::linear); return image.sample(filtering,float2(.5f,.5f)); }"
+        options:nil error:&error] == nil && error.code == MTLLibraryErrorUnsupported,
+        "unsupported embedded source sampler reports an error");
     std::printf("PASS source buffer reflection and compute readback at index 5\n");
     if (shapesMode) [self prepareShapes];
+    if (materialsMode) _materials = [[MaterialRenderer alloc] initWithDevice:_device queue:_queue];
     if (cubeMode) _cube = [[CubeRenderer alloc] initWithDevice: _device queue: _queue];
     std::printf("PASS public source compilation, function lookup, errors and pipeline\n");
     return self;
 }
 
 - (void)verifyCube: (const char*)path { [_cube verifyOffscreen: path]; }
+- (void)verifyMaterials: (const char*)path { [_materials verifyOffscreen:path]; }
+
+- (void)chooseMaterial: (NSButton*)sender {
+    _materials.selection=[sender tag];
+    for (unsigned i=0;i<2;++i) [_materialButtons[i] setState:i==_materials.selection ? NSControlStateValueOn : NSControlStateValueOff];
+    [_materialLabel setStringValue:_materials.selection==0 ? @"Бетон   |   2D текстура → 3D куб" : @"Дерево   |   2D текстура → 3D куб"];
+}
 
 - (void)prepareShapes {
     NSError* error = nil;
@@ -291,22 +311,38 @@ static void expectMetal(bool condition, const char* message) {
 - (void)applicationDidFinishLaunching: (NSNotification*)notification {
     (void)notification;
     _animationStart = CACurrentMediaTime();
-    NSSize initialSize = (shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480);
+    NSSize initialSize = materialsMode ? NSMakeSize(1000,650) : (shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480);
     _window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, initialSize.width, initialSize.height)
         styleMask: NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask
         backing: NSBackingStoreBuffered defer: NO];
-    [_window setTitle: cubeMode ? @"Darling Metal - Rotating 3D cube" :
+    [_window setTitle: materialsMode ? @"Darling Metal - Texture preview" : cubeMode ? @"Darling Metal - Rotating 3D cube" :
         shapesMode ? @"Darling Metal - Shapes in motion" : @"Darling Metal - Render verification"];
     [_window setReleasedWhenClosed: NO];
     [_window setDelegate: self];
-    _view = [[MTKView alloc] initWithFrame: NSMakeRect(0, 0, initialSize.width, initialSize.height) device: _device];
+    _view = [[MTKView alloc] initWithFrame: NSMakeRect(0, 0, initialSize.width, initialSize.height-(materialsMode?70:0)) device: _device];
     expectMetal(_view.layer.opacity == 1.0 && _view.alphaValue == 1.0,
                 "MTKView creates its backing layer after NSView initializes alpha");
+    expectMetal(NSEqualSizes(_view.drawableSize,_view.bounds.size),"MTKView initializes drawableSize before insertion into a window");
     _view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     _view.clearColor = background();
     _view.delegate = self;
     [_view setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
-    [_window setContentView: _view];
+    if (materialsMode) {
+        NSView* content=[[NSView alloc] initWithFrame:NSMakeRect(0,0,initialSize.width,initialSize.height)];
+        [content addSubview:_view];
+        for (unsigned i=0;i<2;++i) {
+            NSButton* button=[[NSButton alloc] initWithFrame:NSMakeRect(20+i*165,initialSize.height-52,155,32)];
+            [button setTitle:i==0?@"1. Бетон":@"2. Дерево"];
+            [button setButtonType:NSPushOnPushOffButton];[button setTag:i];
+            [button setTarget:self];[button setAction:@selector(chooseMaterial:)];
+            [button setAutoresizingMask:NSViewMinYMargin];[content addSubview:button];_materialButtons[i]=button;
+        }
+        _materialLabel=[[NSTextField alloc] initWithFrame:NSMakeRect(365,initialSize.height-51,610,30)];
+        [_materialLabel setEditable:NO];[_materialLabel setSelectable:NO];[_materialLabel setBezeled:NO];[_materialLabel setDrawsBackground:NO];
+        [_materialLabel setAutoresizingMask:NSViewWidthSizable|NSViewMinYMargin];[content addSubview:_materialLabel];
+        [self chooseMaterial:_materialButtons[0]];
+        [_window setContentView:content];[content release];
+    } else [_window setContentView: _view];
     [_window center];
     [_window makeKeyAndOrderFront: nil];
     [NSApp activateIgnoringOtherApps: YES];
@@ -318,11 +354,16 @@ static void expectMetal(bool condition, const char* message) {
 - (void)checkWindow: (NSTimer*)timer {
     expectMetal(_frames > _lastCheckFrames, "window keeps submitting frames");
     _lastCheckFrames = _frames;
-    const NSSize expected[] = {(shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480),
+    const NSSize expected[] = {materialsMode ? NSMakeSize(1000,650) : (shapesMode || cubeMode) ? NSMakeSize(900, 560) : NSMakeSize(720, 480),
         NSMakeSize(900, 600), NSMakeSize(640, 420)};
     NSSize size = expected[_windowCheckStep];
-    expectMetal(NSEqualSizes(_view.bounds.size, size), "window content follows resize");
-    expectMetal(NSEqualSizes(_view.drawableSize, size), "Metal drawable follows resize");
+    if (materialsMode) {
+        [_materialButtons[_windowCheckStep==0?1:0] performClick:nil];
+        expectMetal(_materials.selection==(_windowCheckStep==0?1:0),"material button action updates selection");
+    }
+    NSSize renderSize=NSMakeSize(size.width,size.height-(materialsMode?70:0));
+    expectMetal(NSEqualSizes(_view.bounds.size, renderSize), "window content follows resize");
+    expectMetal(NSEqualSizes(_view.drawableSize, renderSize), "Metal drawable follows resize");
     double elapsed = CACurrentMediaTime() - _animationStart;
     std::printf("PASS window size %.0fx%.0f, frames=%lu elapsed=%.2f fps=%.1f\n",
         size.width, size.height, _frames, elapsed, _frames / elapsed);
@@ -338,7 +379,9 @@ static void expectMetal(bool condition, const char* message) {
     id<CAMetalDrawable> drawable = view.currentDrawable;
     if (!drawable) return;
     id<MTLCommandBuffer> command = [_queue commandBuffer];
-    if (cubeMode)
+    if (materialsMode)
+        [_materials encode:command texture:drawable.texture time:CACurrentMediaTime()-_animationStart];
+    else if (cubeMode)
         [_cube encode: command texture: drawable.texture time: CACurrentMediaTime() - _animationStart];
     else if (shapesMode)
         [self encodeShapes: command texture: drawable.texture time: CACurrentMediaTime() - _animationStart];
@@ -355,6 +398,8 @@ static void expectMetal(bool condition, const char* message) {
     [NSApp terminate: nil];
 }
 - (void)dealloc {
+    [_materials release];[_materialLabel release];
+    for (NSButton* button:_materialButtons) [button release];
     [_cube release];
     for (id<MTLBuffer> buffer : _shapeBuffers) [buffer release];
     [_shapePipeline release];
@@ -367,20 +412,22 @@ int main(int argc, char** argv) {
     @autoreleasepool {
         expectMetal(argc == 2 || argc == 3, "Usage: metal-baseline-demo --[shapes-/cube-]offscreen image.ppm | --[shapes-/cube-]window | --[shapes-/cube-]window-test");
         shapesMode = std::strncmp(argv[1], "--shapes-", 9) == 0;
+        materialsMode = std::strncmp(argv[1], "--textures-", 11) == 0;
         cubeMode = std::strncmp(argv[1], "--cube-", 7) == 0;
         windowChecks = std::strcmp(argv[1], "--window-test") == 0 || std::strcmp(argv[1], "--shapes-window-test") == 0 ||
-                       std::strcmp(argv[1], "--cube-window-test") == 0;
+                       std::strcmp(argv[1], "--cube-window-test") == 0 || std::strcmp(argv[1], "--textures-window-test") == 0;
         if (std::strcmp(argv[1], "--window") == 0 || std::strcmp(argv[1], "--shapes-window") == 0 ||
-            std::strcmp(argv[1], "--cube-window") == 0 || windowChecks) {
+            std::strcmp(argv[1], "--cube-window") == 0 || std::strcmp(argv[1], "--textures-window") == 0 || windowChecks) {
             NSApplication* app = [NSApplication sharedApplication];
             BaselineRenderer* renderer = [[BaselineRenderer alloc] init];
             [app setDelegate: renderer]; [app run]; [renderer release];
         } else {
             expectMetal(argc == 3 && (std::strcmp(argv[1], "--offscreen") == 0 ||
                         std::strcmp(argv[1], "--shapes-offscreen") == 0 ||
-                        std::strcmp(argv[1], "--cube-offscreen") == 0), "invalid demo arguments");
+                        std::strcmp(argv[1], "--cube-offscreen") == 0 || std::strcmp(argv[1], "--textures-offscreen") == 0), "invalid demo arguments");
             BaselineRenderer* renderer = [[BaselineRenderer alloc] init];
-            if (cubeMode) [renderer verifyCube: argv[2]];
+            if (materialsMode) [renderer verifyMaterials:argv[2]];
+            else if (cubeMode) [renderer verifyCube: argv[2]];
             else if (shapesMode) [renderer verifyShapes: argv[2]];
             else [renderer verifyOffscreen: argv[2]];
             [renderer release];
