@@ -1,0 +1,246 @@
+// SPDX-FileCopyrightText: 2026 Darling Developers
+// SPDX-License-Identifier: MPL-2.0
+
+#import <Metal/MTLComputePipelineInternal.h>
+#import <Metal/MTLPipelineInternal.h>
+#import <Metal/MTLLibraryInternal.h>
+#import <Metal/MTLTypesInternal.h>
+#import <Metal/MTLDevice.h>
+#import <Metal/stubs.h>
+
+@implementation MTLComputePipelineDescriptor
+
+#if DARLING_METAL_ENABLED
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		_computeFunction = nil;
+		_threadGroupSizeIsMultipleOfThreadExecutionWidth = NO;
+		_maxTotalThreadsPerThreadgroup = 0; // this indicates to Indium that we haven't changed it from the default; TODO: check what the actual default is
+		_maxCallStackDepth = 1;
+		_stageInputDescriptor = nil;
+		_buffers = [MTLPipelineBufferDescriptorArray new];
+		_supportIndirectCommandBuffers = NO; // TODO: check what the actual default is
+		_preloadedLibraries = [NSArray new];
+		_linkedFunctions = nil;
+		_supportAddingBinaryFunctions = NO; // TODO: check what the actual default is
+		_binaryArchives = nil;
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_computeFunction release];
+	[_stageInputDescriptor release];
+	[_buffers release];
+	[_preloadedLibraries release];
+	[_linkedFunctions release];
+	[_binaryArchives release];
+	[_label release];
+
+	[super dealloc];
+}
+
+- (id)copyWithZone: (NSZone*)zone
+{
+	// TODO: check the actual copy behavior of the official Metal class.
+	//       for now, we just use a reasonable assumption.
+	MTLComputePipelineDescriptor* copy = [MTLComputePipelineDescriptor new];
+
+	copy.computeFunction = self.computeFunction;
+	copy.threadGroupSizeIsMultipleOfThreadExecutionWidth = self.threadGroupSizeIsMultipleOfThreadExecutionWidth;
+	copy.maxTotalThreadsPerThreadgroup = self.maxTotalThreadsPerThreadgroup;
+	copy.maxCallStackDepth = self.maxCallStackDepth;
+	copy.stageInputDescriptor = self.stageInputDescriptor;
+	[copy->_buffers release];
+	copy->_buffers = [_buffers copy];
+	copy.supportIndirectCommandBuffers = self.supportIndirectCommandBuffers;
+	copy.preloadedLibraries = self.preloadedLibraries;
+	copy.linkedFunctions = self.linkedFunctions;
+	copy.supportAddingBinaryFunctions = self.supportAddingBinaryFunctions;
+	copy.binaryArchives = self.binaryArchives;
+	copy.label = self.label;
+
+	return copy;
+}
+
+- (NSArray<id<MTLDynamicLibrary>>*)insertLibraries
+{
+	return [[self.preloadedLibraries retain] autorelease];
+}
+
+- (void)setInsertLibraries: (NSArray<id<MTLDynamicLibrary>>*)insertLibraries
+{
+	self.preloadedLibraries = insertLibraries;
+}
+
+- (void)reset
+{
+	self.computeFunction = nil;
+	self.threadGroupSizeIsMultipleOfThreadExecutionWidth = NO;
+	self.maxTotalThreadsPerThreadgroup = 0; // TODO: check what the actual default is
+	self.maxCallStackDepth = 1;
+	self.stageInputDescriptor = nil;
+	[_buffers release];
+	_buffers = [MTLPipelineBufferDescriptorArray new];
+	self.supportIndirectCommandBuffers = NO; // TODO: check what the actual default is
+	self.preloadedLibraries = [NSArray new];
+	self.linkedFunctions = nil;
+	self.supportAddingBinaryFunctions = NO; // TODO: check what the actual default is
+	self.binaryArchives = nil;
+	self.label = nil;
+}
+
+#else
+
+@dynamic computeFunction;
+@dynamic threadGroupSizeIsMultipleOfThreadExecutionWidth;
+@dynamic maxTotalThreadsPerThreadgroup;
+@dynamic maxCallStackDepth;
+@dynamic stageInputDescriptor;
+@dynamic buffers;
+@dynamic supportIndirectCommandBuffers;
+@dynamic preloadedLibraries;
+@dynamic insertLibraries;
+@dynamic linkedFunctions;
+@dynamic supportAddingBinaryFunctions;
+@dynamic binaryArchives;
+@dynamic label;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLComputePipelineDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::ComputePipelineDescriptor)asIndiumDescriptor
+{
+	return Indium::ComputePipelineDescriptor {
+		((MTLFunctionInternal*)_computeFunction).function,
+		static_cast<bool>(_threadGroupSizeIsMultipleOfThreadExecutionWidth),
+		_maxTotalThreadsPerThreadgroup,
+		_maxCallStackDepth,
+		std::nullopt, // TODO
+		{}, // TODO
+		static_cast<bool>(_supportIndirectCommandBuffers),
+		{}, // TODO
+		nullptr, // TODO
+		static_cast<bool>(_supportAddingBinaryFunctions),
+		{}, // TODO
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLComputePipelineStateInternal
+
+#if DARLING_METAL_ENABLED
+
+@synthesize device = _device;
+@synthesize state = _pso;
+
+const std::shared_ptr<Indium::ComputePipelineState>& MTLComputePipelineStateGetIndium(id<MTLComputePipelineState> object)
+{
+	static const std::shared_ptr<Indium::ComputePipelineState> none;
+	static const Class internalClass = [MTLComputePipelineStateInternal class];
+
+	if (!MTLObjectIsInstanceOf(object, internalClass)) {
+		return none;
+	}
+	return ((MTLComputePipelineStateInternal*)object)->_pso;
+}
+@synthesize label = _label;
+
+- (instancetype)initWithState: (std::shared_ptr<Indium::ComputePipelineState>)state
+                       device: (id<MTLDevice>)device
+                        label: (NSString*)label
+{
+	self = [super init];
+	if (self != nil) {
+		_pso = state;
+		_device = [device retain];
+		_label = [label copy];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_device release];
+	[_label release];
+	[super dealloc];
+}
+
+- (NSUInteger)imageblockMemoryLengthForDimensions: (MTLSize)imageblockDimensions
+{
+	return _pso->imageblockMemoryLength(MTLSizeToIndium(imageblockDimensions));
+}
+
+- (id<MTLFunctionHandle>)functionHandleWithFunction: (id<MTLFunction>)function
+{
+	// TODO
+	return nil;
+}
+
+- (id<MTLComputePipelineState>)newComputePipelineStateWithAdditionalBinaryFunctions: (NSArray<id<MTLFunction>>*)functions 
+                                                                              error: (NSError**)error
+{
+	// TODO
+	return nil;
+}
+
+- (id<MTLVisibleFunctionTable>)newVisibleFunctionTableWithDescriptor: (MTLVisibleFunctionTableDescriptor*)descriptor
+{
+	// TODO
+	return nil;
+}
+
+- (id<MTLIntersectionFunctionTable>)newIntersectionFunctionTableWithDescriptor: (MTLIntersectionFunctionTableDescriptor*)descriptor
+{
+	// TODO
+	return nil;
+}
+
+- (NSUInteger)maxTotalThreadsPerThreadgroup
+{
+	return _pso->maxTotalThreadsPerThreadgroup();
+}
+
+- (NSUInteger)threadExecutionWidth
+{
+	return _pso->threadExecutionWidth();
+}
+
+- (NSUInteger)staticThreadgroupMemoryLength
+{
+	return _pso->staticThreadgroupMemoryLength();
+}
+
+- (BOOL)supportIndirectCommandBuffers
+{
+	return _pso->supportIndirectCommandBuffers();
+}
+
+#else
+
+@dynamic maxTotalThreadsPerThreadgroup;
+@dynamic threadExecutionWidth;
+@dynamic staticThreadgroupMemoryLength;
+@dynamic device;
+@dynamic supportIndirectCommandBuffers;
+@dynamic label;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end

@@ -1,0 +1,985 @@
+// SPDX-FileCopyrightText: 2026 Darling Developers
+// SPDX-License-Identifier: MPL-2.0
+
+#import <Metal/MTLRenderCommandEncoderInternal.h>
+#import <Metal/stubs.h>
+#import <Metal/MTLTextureInternal.h>
+#import <Metal/MTLBufferInternal.h>
+#import <Metal/MTLDevice.h>
+#import <Metal/MTLRenderPipelineInternal.h>
+#import <Metal/MTLTypesInternal.h>
+#import <Metal/MTLSamplerStateInternal.h>
+#import <Metal/MTLDepthStencilDescriptorInternal.h>
+
+#include <map>
+
+@implementation MTLRenderPassAttachmentDescriptor
+
+#if DARLING_METAL_ENABLED
+
+@synthesize texture = _texture;
+@synthesize level = _level;
+@synthesize slice = _slice;
+@synthesize depthPlane = _depthPlane;
+@synthesize loadAction = _loadAction;
+@synthesize storeAction = _storeAction;
+@synthesize storeActionOptions = _storeActionOptions;
+@synthesize resolveTexture = _resolveTexture;
+@synthesize resolveLevel = _resolveLevel;
+@synthesize resolveSlice = _resolveSlice;
+@synthesize resolveDepthPlane = _resolveDepthPlane;
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		// replace with MTLLoadActionDontCare for color attachments
+		_loadAction = MTLLoadActionClear;
+		// replace with MTLStoreActionStore for color attachments
+		_storeAction = MTLStoreActionDontCare;
+		_storeActionOptions = MTLStoreActionOptionNone;
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_texture release];
+	[_resolveTexture release];
+	[super dealloc];
+}
+
+- (void)_copyTo: (MTLRenderPassAttachmentDescriptor*)copy
+{
+	copy.texture = _texture;
+	copy.level = _level;
+	copy.slice = _slice;
+	copy.depthPlane = _depthPlane;
+	copy.loadAction = _loadAction;
+	copy.storeAction = _storeAction;
+	copy.storeActionOptions = _storeActionOptions;
+	copy.resolveTexture = _resolveTexture;
+	copy.resolveLevel = _resolveLevel;
+	copy.resolveSlice = _resolveSlice;
+	copy.resolveDepthPlane = _resolveDepthPlane;
+}
+
+- (instancetype)copyWithZone: (NSZone*)zone
+{
+	MTLRenderPassAttachmentDescriptor* copy = [MTLRenderPassAttachmentDescriptor new];
+	[self _copyTo: copy];
+	return copy;
+}
+
+#else
+
+@dynamic texture;
+@dynamic level;
+@dynamic slice;
+@dynamic depthPlane;
+@dynamic loadAction;
+@dynamic storeAction;
+@dynamic storeActionOptions;
+@dynamic resolveTexture;
+@dynamic resolveLevel;
+@dynamic resolveSlice;
+@dynamic resolveDepthPlane;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassAttachmentDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::RenderPassAttachmentDescriptor)asIndiumDescriptor
+{
+	return Indium::RenderPassAttachmentDescriptor {
+		MTLTextureGetIndium(_texture),
+		_level,
+		_slice,
+		_depthPlane,
+		MTLTextureGetIndium(_resolveTexture),
+		_resolveLevel,
+		_resolveSlice,
+		_resolveDepthPlane,
+		static_cast<Indium::LoadAction>(_loadAction),
+		static_cast<Indium::StoreAction>(_storeAction),
+		static_cast<Indium::StoreActionOptions>(_storeActionOptions),
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderPassColorAttachmentDescriptor
+
+#if DARLING_METAL_ENABLED
+
+@synthesize clearColor = _clearColor;
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		self.loadAction = MTLLoadActionDontCare;
+		self.storeAction = MTLStoreActionStore;
+	}
+	return self;
+}
+
+- (void)_copyTo: (MTLRenderPassColorAttachmentDescriptor*)copy
+{
+	[super _copyTo: copy];
+	copy.clearColor = _clearColor;
+}
+
+- (instancetype)copyWithZone: (NSZone*)zone
+{
+	MTLRenderPassColorAttachmentDescriptor* copy = [MTLRenderPassColorAttachmentDescriptor new];
+	[self _copyTo: copy];
+	return copy;
+}
+
+#else
+
+@dynamic clearColor;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassColorAttachmentDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::RenderPassColorAttachmentDescriptor)asIndiumDescriptor
+{
+	return Indium::RenderPassColorAttachmentDescriptor {
+		[super asIndiumDescriptor],
+		MTLClearColorToIndium(_clearColor),
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderPassDepthAttachmentDescriptor
+
+#if DARLING_METAL_ENABLED
+
+@synthesize clearDepth = _clearDepth;
+@synthesize depthResolveFilter = _depthResolveFilter;
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		_clearDepth = 1;
+		_depthResolveFilter = MTLMultisampleDepthResolveFilterSample0;
+	}
+	return self;
+}
+
+- (void)_copyTo: (MTLRenderPassDepthAttachmentDescriptor*)copy
+{
+	[super _copyTo: copy];
+	copy.clearDepth = _clearDepth;
+	copy.depthResolveFilter = _depthResolveFilter;
+}
+
+- (instancetype)copyWithZone: (NSZone*)zone
+{
+	MTLRenderPassDepthAttachmentDescriptor* copy = [MTLRenderPassDepthAttachmentDescriptor new];
+	[self _copyTo: copy];
+	return copy;
+}
+
+#else
+
+@dynamic clearDepth;
+@dynamic depthResolveFilter;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassDepthAttachmentDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::RenderPassDepthAttachmentDescriptor)asIndiumDescriptor
+{
+	return Indium::RenderPassDepthAttachmentDescriptor {
+		[super asIndiumDescriptor],
+		_clearDepth,
+		static_cast<Indium::MultisampleDepthResolveFilter>(_depthResolveFilter),
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderPassStencilAttachmentDescriptor
+
+#if DARLING_METAL_ENABLED
+
+@synthesize stencilResolveFilter = _stencilResolveFilter;
+@synthesize clearStencil = _clearStencil;
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		_stencilResolveFilter = MTLMultisampleStencilResolveFilterSample0;
+	}
+	return self;
+}
+
+- (void)_copyTo: (MTLRenderPassStencilAttachmentDescriptor*)copy
+{
+	[super _copyTo: copy];
+	copy.stencilResolveFilter = _stencilResolveFilter;
+	copy.clearStencil = _clearStencil;
+}
+
+- (instancetype)copyWithZone: (NSZone*)zone
+{
+	MTLRenderPassStencilAttachmentDescriptor* copy = [MTLRenderPassStencilAttachmentDescriptor new];
+	[self _copyTo: copy];
+	return copy;
+}
+
+#else
+
+@dynamic stencilResolveFilter;
+@dynamic clearStencil;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassStencilAttachmentDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::RenderPassStencilAttachmentDescriptor)asIndiumDescriptor
+{
+	return Indium::RenderPassStencilAttachmentDescriptor {
+		[super asIndiumDescriptor],
+		_clearStencil,
+		static_cast<Indium::MultisampleStencilResolveFilter>(_stencilResolveFilter),
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderPassColorAttachmentDescriptorArray
+
+#if DARLING_METAL_ENABLED
+
+{
+	NSMutableDictionary<NSNumber*, MTLRenderPassColorAttachmentDescriptor*>* _dict;
+}
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		_dict = [NSMutableDictionary new];
+	}
+	return self;
+}
+
+- (instancetype)initWithDictionary: (NSDictionary<NSNumber*, MTLRenderPassColorAttachmentDescriptor*>*)dictionary
+{
+	self = [super init];
+	if (self != nil) {
+		_dict = [dictionary mutableCopy];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_dict release];
+	[super dealloc];
+}
+
+- (MTLRenderPassColorAttachmentDescriptor*)objectAtIndexedSubscript: (NSUInteger)index
+{
+	if (!_dict[@(index)]) {
+		_dict[@(index)] = [[MTLRenderPassColorAttachmentDescriptor new] autorelease];
+	}
+	return [[_dict[@(index)] retain] autorelease];
+}
+
+-    (void)setObject: (MTLRenderPassColorAttachmentDescriptor*)desc
+  atIndexedSubscript: (NSUInteger)index
+{
+	_dict[@(index)] = desc;
+}
+
+#else
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassColorAttachmentDescriptorArray (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (id)copyWithZone: (NSZone*)zone
+{
+	return [[MTLRenderPassColorAttachmentDescriptorArray alloc] initWithDictionary: _dict];
+}
+
+- (std::unordered_map<size_t, Indium::RenderPassColorAttachmentDescriptor>)asIndiumDescriptors
+{
+	std::unordered_map<size_t, Indium::RenderPassColorAttachmentDescriptor> result;
+
+	for (NSNumber* index in _dict) {
+		result[[index unsignedIntegerValue]] = [_dict[index] asIndiumDescriptor];
+	}
+
+	return result;
+}
+
+- (std::vector<Indium::RenderPassColorAttachmentDescriptor>)asContiguousIndiumDescriptors
+{
+	// Attachment N must stay at index N even when lower indices were never configured: a
+	// fragment shader's [[color(N)]] output goes to slot N. Unconfigured slots below the
+	// highest configured one are empty (no texture).
+	auto indexed = [self asIndiumDescriptors];
+	std::vector<Indium::RenderPassColorAttachmentDescriptor> result;
+
+	for (const auto& [index, value]: indexed) {
+		if (index >= result.size()) {
+			result.resize(index + 1);
+		}
+		result[index] = value;
+	}
+
+	return result;
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderPassDescriptor
+
+#if DARLING_METAL_ENABLED
+
+@synthesize colorAttachments = _colorAttachments;
+@synthesize depthAttachment = _depthAttachment;
+@synthesize stencilAttachment = _stencilAttachment;
+@synthesize visibilityResultBuffer = _visibilityResultBuffer;
+@synthesize renderTargetArrayLength = _renderTargetArrayLength;
+@synthesize renderTargetWidth = _renderTargetWidth;
+@synthesize renderTargetHeight = _renderTargetHeight;
+@synthesize imageblockSampleLength = _imageblockSampleLength;
+@synthesize threadgroupMemoryLength = _threadgroupMemoryLength;
+@synthesize tileWidth = _tileWidth;
+@synthesize tileHeight = _tileHeight;
+@synthesize defaultRasterSampleCount = _defaultRasterSampleCount;
+@synthesize rasterizationRateMap = _rasterizationRateMap;
+@synthesize sampleBufferAttachments = _sampleBufferAttachments;
+
++ (MTLRenderPassDescriptor*)renderPassDescriptor
+{
+	return [[MTLRenderPassDescriptor new] autorelease];
+}
+
+- (void)_doInit
+{
+	_colorAttachments = [MTLRenderPassColorAttachmentDescriptorArray new];
+}
+
+// Like the color attachments, the depth and stencil attachment descriptors always exist, so
+// that `descriptor.depthAttachment.texture = texture` configures the descriptor.
+- (MTLRenderPassDepthAttachmentDescriptor*)depthAttachment
+{
+	if (_depthAttachment == nil) {
+		_depthAttachment = [MTLRenderPassDepthAttachmentDescriptor new];
+	}
+	return _depthAttachment;
+}
+
+- (MTLRenderPassStencilAttachmentDescriptor*)stencilAttachment
+{
+	if (_stencilAttachment == nil) {
+		_stencilAttachment = [MTLRenderPassStencilAttachmentDescriptor new];
+	}
+	return _stencilAttachment;
+}
+
+- (void)_doDealloc
+{
+	[_colorAttachments release];
+	[_depthAttachment release];
+	[_stencilAttachment release];
+	[_visibilityResultBuffer release];
+	// TODO: remove cast once we define MTLRasterizationRateMap
+	[(id<NSObject>)_rasterizationRateMap release];
+	[_sampleBufferAttachments release];
+}
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self != nil) {
+		[self _doInit];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[self _doDealloc];
+	[super dealloc];
+}
+
+- (void)_copyTo: (MTLRenderPassDescriptor*)copy
+{
+	[copy->_colorAttachments release];
+	copy->_colorAttachments = [_colorAttachments copy];
+	copy.depthAttachment = _depthAttachment;
+	copy.stencilAttachment = _stencilAttachment;
+	copy.visibilityResultBuffer = _visibilityResultBuffer;
+	copy.renderTargetArrayLength = _renderTargetArrayLength;
+	copy.renderTargetWidth = _renderTargetWidth;
+	copy.renderTargetHeight = _renderTargetHeight;
+	copy.imageblockSampleLength = _imageblockSampleLength;
+	copy.threadgroupMemoryLength = _threadgroupMemoryLength;
+	copy.tileWidth = _tileWidth;
+	copy.tileHeight = _tileHeight;
+	copy.defaultRasterSampleCount = _defaultRasterSampleCount;
+	copy.rasterizationRateMap = _rasterizationRateMap;
+	// TODO: sampleBufferAttachments
+}
+
+- (instancetype)copyWithZone: (NSZone*)zone
+{
+	MTLRenderPassDescriptor* copy = [MTLRenderPassDescriptor new];
+	[self _copyTo: copy];
+	return copy;
+}
+
+- (NSUInteger)getSamplePositions: (MTLSamplePosition*)positions
+                           count: (NSUInteger)count
+{
+	// TODO
+	return 0;
+}
+
+- (void)setSamplePositions: (const MTLSamplePosition*)positions
+                     count: (NSUInteger)count
+{
+	// TODO
+}
+
+#else
+
+@dynamic colorAttachments;
+@dynamic depthAttachment;
+@dynamic stencilAttachment;
+@dynamic visibilityResultBuffer;
+@dynamic renderTargetArrayLength;
+@dynamic renderTargetWidth;
+@dynamic renderTargetHeight;
+@dynamic imageblockSampleLength;
+@dynamic threadgroupMemoryLength;
+@dynamic tileWidth;
+@dynamic tileHeight;
+@dynamic defaultRasterSampleCount;
+@dynamic rasterizationRateMap;
+@dynamic sampleBufferAttachments;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
+
+@implementation MTLRenderPassDescriptor (Internal)
+
+#if DARLING_METAL_ENABLED
+
+- (Indium::RenderPassDescriptor)asIndiumDescriptor
+{
+	return Indium::RenderPassDescriptor {
+		[_colorAttachments asContiguousIndiumDescriptors],
+		(_depthAttachment.texture == nil) ? std::nullopt : std::make_optional([_depthAttachment asIndiumDescriptor]),
+		(_stencilAttachment.texture == nil) ? std::nullopt : std::make_optional([_stencilAttachment asIndiumDescriptor]),
+		MTLBufferGetIndium(_visibilityResultBuffer),
+		_renderTargetArrayLength,
+		_imageblockSampleLength,
+		_threadgroupMemoryLength,
+		_tileWidth,
+		_tileHeight,
+		_defaultRasterSampleCount,
+		_renderTargetWidth,
+		_renderTargetHeight,
+		nullptr, // TODO
+		nullptr, // TODO
+		{}, // TODO
+	};
+}
+
+#endif
+
+@end
+
+@implementation MTLRenderCommandEncoderInternal
+
+#if DARLING_METAL_ENABLED
+
+@synthesize device = _device;
+@synthesize encoder = _encoder;
+@synthesize label = _label;
+
+- (instancetype)initWithEncoder: (std::shared_ptr<Indium::RenderCommandEncoder>)encoder
+                         device: (id<MTLDevice>)device
+{
+	self = [super init];
+	if (self != nil) {
+		_encoder = encoder;
+		_device = [device retain];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_device release];
+	[_label release];
+	[super dealloc];
+}
+
+//
+// overridden methods
+//
+
+- (void)endEncoding
+{
+	// the Indium encoder lets go of what it was given, so nothing recorded is valid any more
+	_vertexBufferSlots.known = 0;
+	_fragmentBufferSlots.known = 0;
+	_vertexTextureSlots.known = 0;
+	_fragmentTextureSlots.known = 0;
+	_vertexSamplerSlots.known = 0;
+	_fragmentSamplerSlots.known = 0;
+	_pipelineStateKnown = NO;
+	_boundDepthStencilState.reset();
+	_depthStencilStateKnown = NO;
+	_encoder->endEncoding();
+}
+
+//
+// methods
+//
+
+- (void)setRenderPipelineState: (id<MTLRenderPipelineState>)pipelineState
+{
+	const auto& state = MTLRenderPipelineStateGetIndium(pipelineState);
+	if (_pipelineStateKnown && _boundPipelineState == state.get()) {
+		return;
+	}
+	_boundPipelineState = state.get();
+	_pipelineStateKnown = YES;
+	_encoder->setRenderPipelineState(state);
+}
+
+- (void)setTriangleFillMode: (MTLTriangleFillMode)fillMode
+{
+	_encoder->setTriangleFillMode(static_cast<Indium::TriangleFillMode>(fillMode));
+}
+
+- (void)setFrontFacingWinding: (MTLWinding)frontFacingWinding
+{
+	_encoder->setFrontFacingWinding(static_cast<Indium::Winding>(frontFacingWinding));
+}
+
+- (void)setCullMode: (MTLCullMode)cullMode
+{
+	_encoder->setCullMode(static_cast<Indium::CullMode>(cullMode));
+}
+
+- (void)setDepthClipMode: (MTLDepthClipMode)depthClipMode
+{
+	_encoder->setDepthClipMode(static_cast<Indium::DepthClipMode>(depthClipMode));
+}
+
+- (void)setBlendColorRed: (float)red
+                   green: (float)green
+                    blue: (float)blue
+                   alpha: (float)alpha
+{
+	_encoder->setBlendColor(red, green, blue, alpha);
+}
+
+- (void)setStencilReferenceValue: (uint32_t)refValue
+{
+	_encoder->setStencilReferenceValue(refValue);
+}
+
+- (void)setDepthBias: (float)depthBias
+          slopeScale: (float)slopeScale
+               clamp: (float)clamp
+{
+	_encoder->setDepthBias(depthBias, slopeScale, clamp);
+}
+
+- (void)setDepthStencilState: (id<MTLDepthStencilState>)state
+{
+	const auto& indiumState = MTLDepthStencilStateGetIndium(state);
+	if (_depthStencilStateKnown && _boundDepthStencilState == indiumState) {
+		return;
+	}
+	_boundDepthStencilState = indiumState;
+	_depthStencilStateKnown = YES;
+	_encoder->setDepthStencilState(indiumState);
+}
+
+- (void)memoryBarrierWithScope: (MTLBarrierScope)scope
+                   afterStages: (MTLRenderStages)after
+                  beforeStages: (MTLRenderStages)before
+{
+	// MTLBarrierScope and MTLRenderStages have the same bit values as Indium's flags
+	_encoder->memoryBarrier(static_cast<Indium::BarrierScope>(scope), static_cast<Indium::RenderStages>(after), static_cast<Indium::RenderStages>(before));
+}
+
+- (void)setVisibilityResultMode: (MTLVisibilityResultMode)mode
+                          offset: (NSUInteger)offset
+{
+	_encoder->setVisibilityResultMode(static_cast<Indium::VisibilityResultMode>(mode), offset);
+}
+
+- (void)setViewport: (MTLViewport)viewport
+{
+	_encoder->setViewport(MTLViewportToIndium(viewport));
+}
+
+- (void)setViewports: (const MTLViewport*)viewports
+               count: (NSUInteger)count
+{
+	std::vector<Indium::Viewport> tmp;
+	for (size_t i = 0; i < count; ++i) {
+		tmp.push_back(MTLViewportToIndium(viewports[i]));
+	}
+	_encoder->setViewports(tmp);
+}
+
+- (void)setScissorRect: (MTLScissorRect)rect
+{
+	_encoder->setScissorRect(MTLScissorRectToIndium(rect));
+}
+
+- (void)setScissorRects: (const MTLScissorRect*)scissorRects
+                  count: (NSUInteger)count
+{
+	std::vector<Indium::ScissorRect> tmp;
+	for (size_t i = 0; i < count; ++i) {
+		tmp.push_back(MTLScissorRectToIndium(scissorRects[i]));
+	}
+	_encoder->setScissorRects(tmp);
+}
+
+- (void)setVertexBuffer: (id<MTLBuffer>)buffer
+                 offset: (NSUInteger)offset
+                atIndex: (NSUInteger)index
+{
+	const auto& indiumBuffer = MTLBufferGetIndium(buffer);
+	if (_vertexBufferSlots.holds(index, indiumBuffer.get(), offset)) {
+		return;
+	}
+	_encoder->setVertexBuffer(indiumBuffer, offset, index);
+}
+
+- (void)setVertexBuffers: (const id<MTLBuffer>*)buffers
+                 offsets: (const NSUInteger*)offsets
+               withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::Buffer>> tmp;
+	std::vector<size_t> tmp2(offsets, offsets + range.length);
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLBufferGetIndium(buffers[i]));
+		_vertexBufferSlots.record(range.location + i, tmp.back().get(), offsets[i]);
+	}
+	_encoder->setVertexBuffers(tmp, tmp2, NSRangeToIndium(range));
+}
+
+- (void)setVertexBufferOffset: (NSUInteger)offset
+                      atIndex: (NSUInteger)index
+{
+	if (_vertexBufferSlots.holdsOffset(index, offset)) {
+		return;
+	}
+	_encoder->setVertexBufferOffset(offset, index);
+}
+
+- (void)setVertexBytes: (const void*)bytes
+                length: (NSUInteger)length
+               atIndex: (NSUInteger)index
+{
+	// the bytes go into a new buffer, so the slot no longer holds what was recorded for it
+	_vertexBufferSlots.forget(index);
+	_encoder->setVertexBytes(bytes, length, index);
+}
+
+- (void)setVertexTexture: (id<MTLTexture>)texture
+                atIndex: (NSUInteger)index
+{
+	const auto& indiumTexture = MTLTextureGetIndium(texture);
+	if (_vertexTextureSlots.holds(index, indiumTexture.get())) {
+		return;
+	}
+	_encoder->setVertexTexture(indiumTexture, index);
+}
+
+- (void)setVertexTextures: (const id<MTLTexture>*)textures
+                withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::Texture>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLTextureGetIndium(textures[i]));
+		_vertexTextureSlots.record(range.location + i, tmp.back().get());
+	}
+	_encoder->setVertexTextures(tmp, NSRangeToIndium(range));
+}
+
+- (void)setVertexSamplerState: (id<MTLSamplerState>)sampler
+                      atIndex: (NSUInteger)index
+{
+	const auto& indiumSampler = MTLSamplerStateGetIndium(sampler);
+	if (_vertexSamplerSlots.holds(index, indiumSampler.get())) {
+		return;
+	}
+	_encoder->setVertexSamplerState(indiumSampler, index);
+}
+
+- (void)setVertexSamplerStates: (const id<MTLSamplerState>*)samplers
+                      withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::SamplerState>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLSamplerStateGetIndium(samplers[i]));
+		_vertexSamplerSlots.record(range.location + i, tmp.back().get());
+	}
+	_encoder->setVertexSamplerStates(tmp, NSRangeToIndium(range));
+}
+
+- (void)setVertexSamplerState: (id<MTLSamplerState>)sampler
+                   lodMinClamp: (float)lodMinClamp
+                   lodMaxClamp: (float)lodMaxClamp
+                      atIndex: (NSUInteger)index
+{
+	// the slot gets a copy of the sampler with these clamps, not the sampler itself
+	_vertexSamplerSlots.forget(index);
+	_encoder->setVertexSamplerState(MTLSamplerStateGetIndium(sampler), lodMinClamp, lodMaxClamp, index);
+}
+
+- (void)setVertexSamplerStates: (const id<MTLSamplerState>*)samplers
+                   lodMinClamps: (const float*)lodMinClamps
+                   lodMaxClamps: (const float*)lodMaxClamps
+                      withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::SamplerState>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLSamplerStateGetIndium(samplers[i]));
+	}
+	_vertexSamplerSlots.forget(range.location, range.length);
+	_encoder->setVertexSamplerStates(tmp, std::vector<float>(lodMinClamps, lodMinClamps + range.length), std::vector<float>(lodMaxClamps, lodMaxClamps + range.length), NSRangeToIndium(range));
+}
+
+- (void)setFragmentBuffer: (id<MTLBuffer>)buffer
+                   offset: (NSUInteger)offset
+                  atIndex: (NSUInteger)index
+{
+	const auto& indiumBuffer = MTLBufferGetIndium(buffer);
+	if (_fragmentBufferSlots.holds(index, indiumBuffer.get(), offset)) {
+		return;
+	}
+	_encoder->setFragmentBuffer(indiumBuffer, offset, index);
+}
+
+- (void)setFragmentBuffers: (const id<MTLBuffer>*)buffers
+                   offsets: (const NSUInteger*)offsets
+                 withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::Buffer>> tmp;
+	std::vector<size_t> tmp2(offsets, offsets + range.length);
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLBufferGetIndium(buffers[i]));
+		_fragmentBufferSlots.record(range.location + i, tmp.back().get(), offsets[i]);
+	}
+	_encoder->setFragmentBuffers(tmp, tmp2, NSRangeToIndium(range));
+}
+
+- (void)setFragmentBufferOffset: (NSUInteger)offset
+                        atIndex: (NSUInteger)index
+{
+	if (_fragmentBufferSlots.holdsOffset(index, offset)) {
+		return;
+	}
+	_encoder->setFragmentBufferOffset(offset, index);
+}
+
+- (void)setFragmentBytes: (const void*)bytes
+                  length: (NSUInteger)length
+                 atIndex: (NSUInteger)index
+{
+	// the bytes go into a new buffer, so the slot no longer holds what was recorded for it
+	_fragmentBufferSlots.forget(index);
+	_encoder->setFragmentBytes(bytes, length, index);
+}
+
+- (void)setFragmentTexture: (id<MTLTexture>)texture
+                  atIndex: (NSUInteger)index
+{
+	const auto& indiumTexture = MTLTextureGetIndium(texture);
+	if (_fragmentTextureSlots.holds(index, indiumTexture.get())) {
+		return;
+	}
+	_encoder->setFragmentTexture(indiumTexture, index);
+}
+
+- (void)setFragmentTextures: (const id<MTLTexture>*)textures
+                  withRange: (NSRange)range
+{
+	// Indium takes this by non-const reference, unlike setVertexTextures.
+	std::vector<std::shared_ptr<Indium::Texture>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLTextureGetIndium(textures[i]));
+		_fragmentTextureSlots.record(range.location + i, tmp.back().get());
+	}
+	_encoder->setFragmentTextures(tmp, NSRangeToIndium(range));
+}
+
+- (void)setFragmentSamplerState: (id<MTLSamplerState>)sampler
+                        atIndex: (NSUInteger)index
+{
+	const auto& indiumSampler = MTLSamplerStateGetIndium(sampler);
+	if (_fragmentSamplerSlots.holds(index, indiumSampler.get())) {
+		return;
+	}
+	_encoder->setFragmentSamplerState(indiumSampler, index);
+}
+
+- (void)setFragmentSamplerStates: (const id<MTLSamplerState>*)samplers
+                        withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::SamplerState>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLSamplerStateGetIndium(samplers[i]));
+		_fragmentSamplerSlots.record(range.location + i, tmp.back().get());
+	}
+	_encoder->setFragmentSamplerStates(tmp, NSRangeToIndium(range));
+}
+
+- (void)setFragmentSamplerState: (id<MTLSamplerState>)sampler
+                     lodMinClamp: (float)lodMinClamp
+                     lodMaxClamp: (float)lodMaxClamp
+                        atIndex: (NSUInteger)index
+{
+	// the slot gets a copy of the sampler with these clamps, not the sampler itself
+	_fragmentSamplerSlots.forget(index);
+	_encoder->setFragmentSamplerState(MTLSamplerStateGetIndium(sampler), lodMinClamp, lodMaxClamp, index);
+}
+
+- (void)setFragmentSamplerStates: (const id<MTLSamplerState>*)samplers
+                     lodMinClamps: (const float*)lodMinClamps
+                     lodMaxClamps: (const float*)lodMaxClamps
+                        withRange: (NSRange)range
+{
+	std::vector<std::shared_ptr<Indium::SamplerState>> tmp;
+	for (size_t i = 0; i < range.length; ++i) {
+		tmp.push_back(MTLSamplerStateGetIndium(samplers[i]));
+	}
+	_fragmentSamplerSlots.forget(range.location, range.length);
+	_encoder->setFragmentSamplerStates(tmp, std::vector<float>(lodMinClamps, lodMinClamps + range.length), std::vector<float>(lodMaxClamps, lodMaxClamps + range.length), NSRangeToIndium(range));
+}
+
+- (void)drawPrimitives: (MTLPrimitiveType)primitiveType
+           vertexStart: (NSUInteger)vertexStart
+           vertexCount: (NSUInteger)vertexCount
+         instanceCount: (NSUInteger)instanceCount
+          baseInstance: (NSUInteger)baseInstance
+{
+	_encoder->drawPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), vertexStart, vertexCount, instanceCount, baseInstance);
+}
+
+- (void)drawPrimitives: (MTLPrimitiveType)primitiveType
+           vertexStart: (NSUInteger)vertexStart
+           vertexCount: (NSUInteger)vertexCount
+         instanceCount: (NSUInteger)instanceCount
+{
+	_encoder->drawPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), vertexStart, vertexCount, instanceCount);
+}
+
+- (void)drawPrimitives: (MTLPrimitiveType)primitiveType
+           vertexStart: (NSUInteger)vertexStart
+           vertexCount: (NSUInteger)vertexCount
+{
+	_encoder->drawPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), vertexStart, vertexCount);
+}
+
+- (void)drawIndexedPrimitives: (MTLPrimitiveType)primitiveType
+                   indexCount: (NSUInteger)indexCount
+                    indexType: (MTLIndexType)indexType
+                  indexBuffer: (id<MTLBuffer>)indexBuffer
+            indexBufferOffset: (NSUInteger)indexBufferOffset
+                instanceCount: (NSUInteger)instanceCount
+                   baseVertex: (NSInteger)baseVertex
+                 baseInstance: (NSUInteger)baseInstance
+{
+	_encoder->drawIndexedPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), indexCount, static_cast<Indium::IndexType>(indexType), MTLBufferGetIndium(indexBuffer), indexBufferOffset, instanceCount, baseVertex, baseInstance);
+}
+
+- (void)drawIndexedPrimitives: (MTLPrimitiveType)primitiveType
+                   indexCount: (NSUInteger)indexCount
+                    indexType: (MTLIndexType)indexType
+                  indexBuffer: (id<MTLBuffer>)indexBuffer
+            indexBufferOffset: (NSUInteger)indexBufferOffset
+                instanceCount: (NSUInteger)instanceCount
+{
+	_encoder->drawIndexedPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), indexCount, static_cast<Indium::IndexType>(indexType), MTLBufferGetIndium(indexBuffer), indexBufferOffset, instanceCount);
+}
+
+- (void)drawIndexedPrimitives: (MTLPrimitiveType)primitiveType
+                   indexCount: (NSUInteger)indexCount
+                    indexType: (MTLIndexType)indexType
+                  indexBuffer: (id<MTLBuffer>)indexBuffer
+            indexBufferOffset: (NSUInteger)indexBufferOffset
+{
+	_encoder->drawIndexedPrimitives(static_cast<Indium::PrimitiveType>(primitiveType), indexCount, static_cast<Indium::IndexType>(indexType), MTLBufferGetIndium(indexBuffer), indexBufferOffset);
+}
+
+#else
+
+@dynamic device;
+@dynamic label;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end

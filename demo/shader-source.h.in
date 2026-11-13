@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+static const char baselineShaderSource[] = R"BASELINE(@BASELINE_VERTEX_SOURCE@
+@BASELINE_FRAGMENT_SOURCE@
+)BASELINE";
+static const char shapesShaderSource[] = R"BASELINE(@BASELINE_SHAPES_SOURCE@)BASELINE";

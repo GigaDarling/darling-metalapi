@@ -1,0 +1,6 @@
+[submodule "metal/deps/indium"]
+	path = metal/deps/indium
+	url = https://github.com/darlinghq/indium.git
+[submodule "deps/mslc"]
+	path = deps/mslc
+	url = https://github.com/cristim/mslc.git

@@ -1,0 +1,36 @@
+// SPDX-FileCopyrightText: 2026 Darling Developers
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef _METAL_MTLLIBRARYINTERNAL_H_
+#define _METAL_MTLLIBRARYINTERNAL_H_
+
+#import <Metal/MTLLibrary.h>
+
+#if DARLING_METAL_ENABLED
+#include <indium/indium.hpp>
+#endif
+
+@interface MTLFunctionInternal : NSObject <MTLFunction>
+
+#if DARLING_METAL_ENABLED
+@property(readonly) std::shared_ptr<Indium::Function> function;
+
+- (instancetype)initWithFunction: (std::shared_ptr<Indium::Function>)function
+                          device: (id<MTLDevice>)device;
+#endif
+
+@end
+
+@interface MTLLibraryInternal : NSObject <MTLLibrary>
+
+#if DARLING_METAL_ENABLED
+- (instancetype)initWithLibrary: (std::shared_ptr<Indium::Library>)library
+                         device: (id<MTLDevice>)device;
+- (instancetype)initWithLibrary: (std::shared_ptr<Indium::Library>)library
+                         device: (id<MTLDevice>)device
+                  functionNames: (NSArray<NSString*>*)names;
+#endif
+
+@end
+
+#endif // _METAL_MTLLIBRARYINTERNAL_H_

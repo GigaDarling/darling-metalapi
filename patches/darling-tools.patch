@@ -1,0 +1,25 @@
+diff --git a/src/tools/CMakeLists.txt b/src/tools/CMakeLists.txt
+index c038774bb..67ef62962 100644
+--- a/src/tools/CMakeLists.txt
++++ b/src/tools/CMakeLists.txt
+@@ -19,6 +19,20 @@ if (COMPONENT_cli)
+ 	target_link_libraries(system_profiler CoreFoundation)
+ endif()
+ 
++option(DARLING_BUILD_METAL_DEMO "Build the standalone Metal render verification client" OFF)
++if (DARLING_BUILD_METAL_DEMO AND COMPONENT_gui)
++	set(METAL_BASELINE_DIR "${CMAKE_SOURCE_DIR}/tools/metal-baseline")
++	file(READ "${METAL_BASELINE_DIR}/shaders/baseline-vertex.metal" BASELINE_VERTEX_SOURCE)
++	file(READ "${METAL_BASELINE_DIR}/shaders/baseline-fragment.metal" BASELINE_FRAGMENT_SOURCE)
++	file(READ "${METAL_BASELINE_DIR}/shaders/shapes.metal" BASELINE_SHAPES_SOURCE)
++	configure_file("${METAL_BASELINE_DIR}/shader-source.h.in" "metal-baseline-source.h" @ONLY)
++	add_darling_executable(metal-baseline-demo "${METAL_BASELINE_DIR}/render-demo.mm")
++	target_include_directories(metal-baseline-demo PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
++	target_compile_options(metal-baseline-demo PRIVATE -fblocks)
++	set_target_properties(metal-baseline-demo PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
++	target_link_libraries(metal-baseline-demo Metal MetalKit AppKit QuartzCore Foundation CoreGraphics cxx)
++endif()
++
+ if (COMPONENT_gui)
+ 	set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "gui")
+ 

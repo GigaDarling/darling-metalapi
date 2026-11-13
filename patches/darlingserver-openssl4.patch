@@ -1,0 +1,30 @@
+diff --git a/src/code-signing.cpp b/src/code-signing.cpp
+index 5e4c287..2c3ce3d 100644
+--- a/src/code-signing.cpp
++++ b/src/code-signing.cpp
+@@ -133,13 +133,13 @@ namespace {
+ 		int count = attribute ? X509_ATTRIBUTE_count(attribute) : 0;
+ 
+ 		for (int i = 0; i < count; ++i) {
+-			ASN1_TYPE* value = X509_ATTRIBUTE_get0_type(attribute, i);
++			const ASN1_TYPE* value = X509_ATTRIBUTE_get0_type(attribute, i);
+ 			if (!value || value->type != V_ASN1_SEQUENCE || !value->value.sequence) {
+ 				continue;
+ 			}
+ 
+-			const unsigned char* data = value->value.sequence->data;
+-			TypesPointer elements(d2i_ASN1_SEQUENCE_ANY(nullptr, &data, value->value.sequence->length));
++			const unsigned char* data = ASN1_STRING_get0_data(value->value.sequence);
++			TypesPointer elements(d2i_ASN1_SEQUENCE_ANY(nullptr, &data, ASN1_STRING_length(value->value.sequence)));
+ 			if (!elements || sk_ASN1_TYPE_num(elements.get()) != 2) {
+ 				continue;
+ 			}
+@@ -231,7 +231,7 @@ int DarlingServer::CodeSigning::verifyCms(const struct dc_cs_image& image, std::
+ 		return -1;
+ 	}
+ 
+-	X509_PUBKEY* publicKey = X509_get_X509_PUBKEY(sk_X509_value(certificates.get(), 0));
++	const X509_PUBKEY* publicKey = X509_get_X509_PUBKEY(sk_X509_value(certificates.get(), 0));
+ 	unsigned char* encoded = nullptr;
+ 	int encodedLength = publicKey ? i2d_X509_PUBKEY(publicKey, &encoded) : -1;
+ 	unsigned int digestLength = 0;

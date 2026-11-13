@@ -1,0 +1,56 @@
+// SPDX-FileCopyrightText: 2026 Darling Developers
+// SPDX-License-Identifier: MPL-2.0
+
+#import <Metal/MTLCommandQueueInternal.h>
+#import <Metal/MTLDevice.h>
+#import <Metal/MTLCommandBufferInternal.h>
+#import <Metal/stubs.h>
+
+@implementation MTLCommandQueueInternal
+
+#if DARLING_METAL_ENABLED
+
+{
+	std::shared_ptr<Indium::CommandQueue> _queue;
+}
+
+@synthesize device = _device;
+@synthesize label = _label;
+
+- (instancetype)initWithQueue: (std::shared_ptr<Indium::CommandQueue>)queue
+                       device: (id<MTLDevice>)device
+{
+	self = [super init];
+	if (self != nil) {
+		_queue = queue;
+		_device = [device retain];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_device release];
+	[_label release];
+	[super dealloc];
+}
+
+- (id<MTLCommandBuffer>)commandBuffer
+{
+	auto buf = _queue->commandBuffer();
+	if (!buf) {
+		return nil;
+	}
+	return [[[MTLCommandBufferInternal alloc] initWithCommandBuffer: buf commandQueue: self] autorelease];
+}
+
+#else
+
+@dynamic device;
+@dynamic label;
+
+MTL_UNSUPPORTED_CLASS
+
+#endif
+
+@end
