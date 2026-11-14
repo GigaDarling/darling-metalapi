@@ -333,3 +333,20 @@ https://developer.apple.com/documentation/metal/mtlrendercommandencoder/setfragm
 https://developer.apple.com/documentation/metalkit/mtkview/drawablesize
 https://docs.vulkan.org/refpages/latest/refpages/source/VkViewport.html
 No restricted Apple source or third-party image assets were used.
+
+
+### v0.3.0: dynamic light and storage textures
+
+`textures-window` now enables a moving point light on the cube. The normal
+material buttons remain available; the light button toggles lighting. The flat
+preview is unlit. `textures-offscreen` checks explicit/embedded sampling,
+storage texture read/write/read_write, and independent point-light reference
+images, including wrong-light controls. `textures-window-test` also checks the
+lighting toggle. Full threadgroups and bounds guards support odd image sizes.
+
+The optional mslc compiler has a local MIT read_write patch, tracked against
+upstream issue https://github.com/cristim/mslc/issues/96. All 2,573 tests pass;
+the unmodified Indium corpus remains 7/7 valid before and after. The backend
+uses storage image views for load/store, and adds storage usage for supported
+single-sample ShaderRead textures. Public contract source:
+https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf.

@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <map>
 #include <set>
+#include <initializer_list>
+#include <limits>
 
 static bool sourceReflectionIndex(id value, size_t& index) {
     if (![value isKindOfClass: [NSNumber class]])
@@ -24,11 +26,53 @@ static bool sourceReflectionIndex(id value, size_t& index) {
     return true;
 }
 
+static bool sourceSamplerEnum(id value, std::initializer_list<const char*> names, size_t& result) {
+    if (![value isKindOfClass:[NSString class]]) return false;
+    size_t index=0;
+    for (const char* name:names) {
+        if ([value isEqualToString:[NSString stringWithUTF8String:name]]) { result=index; return true; }
+        ++index;
+    }
+    return false;
+}
+
+static bool readSourceSampler(id entry, Indium::EmbeddedSamplerDescriptor& sampler) {
+    if (![entry isKindOfClass:[NSDictionary class]]) return false;
+    size_t s,t,r,mag,min,mip,compare,border,anisotropy,normalized;
+    auto address = {"ClampToZero","ClampToEdge","Repeat","MirrorRepeat","ClampToBorderColor"};
+    if (!sourceSamplerEnum(entry[@"s_address"],address,s) || !sourceSamplerEnum(entry[@"t_address"],address,t) ||
+        !sourceSamplerEnum(entry[@"r_address"],address,r) ||
+        !sourceSamplerEnum(entry[@"mag_filter"],{"Nearest","Linear"},mag) ||
+        !sourceSamplerEnum(entry[@"min_filter"],{"Nearest","Linear"},min) ||
+        !sourceSamplerEnum(entry[@"mip_filter"],{"None","Nearest","Linear"},mip) ||
+        !sourceSamplerEnum(entry[@"compare_function"],{"None","Less","LessEqual","Greater","GreaterEqual","Equal","NotEqual","Always","Never"},compare) ||
+        !sourceSamplerEnum(entry[@"border_color"],{"TransparentBlack","OpaqueBlack","OpaqueWhite"},border) ||
+        !sourceReflectionIndex(entry[@"anisotropy"],anisotropy) || anisotropy<1 || anisotropy>UINT8_MAX ||
+        !sourceReflectionIndex(entry[@"normalized_coordinates"],normalized) || normalized>1 ||
+        ![entry[@"lod_min"] isKindOfClass:[NSNumber class]] || ![entry[@"lod_max"] isKindOfClass:[NSNumber class]]) return false;
+    double low=[entry[@"lod_min"] doubleValue],high=[entry[@"lod_max"] doubleValue];
+    if (!std::isfinite(low) || !std::isfinite(high) || low<0 || high<low || high>std::numeric_limits<float>::max()) return false;
+    sampler.widthAddressMode=static_cast<Indium::EmbeddedSamplerDescriptor::AddressMode>(s);
+    sampler.heightAddressMode=static_cast<Indium::EmbeddedSamplerDescriptor::AddressMode>(t);
+    sampler.depthAddressMode=static_cast<Indium::EmbeddedSamplerDescriptor::AddressMode>(r);
+    sampler.magnificationFilter=static_cast<Indium::EmbeddedSamplerDescriptor::Filter>(mag);
+    sampler.minificationFilter=static_cast<Indium::EmbeddedSamplerDescriptor::Filter>(min);
+    sampler.mipmapFilter=static_cast<Indium::EmbeddedSamplerDescriptor::MipFilter>(mip);
+    sampler.compareFunction=static_cast<Indium::EmbeddedSamplerDescriptor::CompareFunction>(compare);
+    sampler.borderColor=static_cast<Indium::EmbeddedSamplerDescriptor::BorderColor>(border);
+    sampler.anisotropyLevel=anisotropy;sampler.usesNormalizedCoordinates=normalized;sampler.lodMin=low;sampler.lodMax=high;
+    return true;
+}
+
 static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection& function,
                               NSString** reason) {
-    if ([entry[@"embedded_samplers"] count]) {
-        *reason = @"Source compilation with embedded samplers is not supported yet";
-        return false;
+    for (id description in entry[@"embedded_samplers"]) {
+        Indium::EmbeddedSamplerDescriptor sampler;
+        if (!readSourceSampler(description,sampler)) {
+            *reason=@"The source compiler returned an unsupported or invalid embedded sampler";
+            return false;
+        }
+        function.embeddedSamplers.push_back(sampler);
     }
     // Indium's address block follows member order, independently of the Metal
     // buffer indices. Preserve the compiler's explicit member mapping.
@@ -43,8 +87,11 @@ static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection&
             *reason = @"The source compiler returned an invalid resource description";
             return false;
         }
-        size_t index, set, binding;
-        if (!sourceReflectionIndex(resource[@"metal_index"], index) ||
+        NSString* kind = resource[@"kind"];
+        bool embedded=[kind isEqual:@"Sampler"] && resource[@"embedded_sampler"]!=nil;
+        size_t index=SIZE_MAX,set,binding,embeddedIndex=SIZE_MAX;
+        if ((!embedded && !sourceReflectionIndex(resource[@"metal_index"], index)) ||
+            (embedded && (!sourceReflectionIndex(resource[@"embedded_sampler"],embeddedIndex) || embeddedIndex>=function.embeddedSamplers.size())) ||
             !sourceReflectionIndex(resource[@"descriptor"][@"set"], set) ||
             !sourceReflectionIndex(resource[@"descriptor"][@"binding"], binding) ||
             set != (function.functionType == Indium::FunctionType::Fragment ? 1 : 0)) {
@@ -54,7 +101,7 @@ static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection&
         Indium::BindingDescriptor descriptor;
         descriptor.index = index;
         descriptor.internalIndex = binding;
-        NSString* kind = resource[@"kind"];
+        descriptor.embeddedSamplerIndex=embeddedIndex;
         if ([kind isEqual: @"Buffer"]) {
             size_t member;
             descriptor.type = Indium::BindingType::Buffer;
@@ -66,11 +113,14 @@ static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection&
             hasBuffers = true;
         } else if ([kind isEqual: @"Texture"] || [kind isEqual: @"Sampler"]) {
             descriptor.type = [kind isEqual: @"Texture"] ? Indium::BindingType::Texture : Indium::BindingType::Sampler;
-            if (descriptor.type == Indium::BindingType::Texture && ![resource[@"texture_access"] isEqual: @"Sample"]) {
-                *reason = @"Source storage texture access is not supported yet";
-                return false;
+            if (descriptor.type == Indium::BindingType::Texture) {
+                size_t access;
+                if (!sourceSamplerEnum(resource[@"texture_access"],{"Sample","Read","Write","ReadWrite"},access)) {
+                    *reason=@"The source compiler returned an unknown texture access type";
+                    return false;
+                }
+                descriptor.textureAccessType=static_cast<Indium::TextureAccessType>(access);
             }
-            descriptor.textureAccessType = Indium::TextureAccessType::Sample;
             if (!descriptors.insert(binding).second) {
                 *reason = @"The source compiler returned duplicate descriptor bindings";
                 return false;
@@ -80,7 +130,7 @@ static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection&
             *reason = @"The source compiler returned an unsupported resource kind";
             return false;
         }
-        if (!indices.emplace(static_cast<unsigned>(descriptor.type), index).second) {
+        if (!embedded && !indices.emplace(static_cast<unsigned>(descriptor.type), index).second) {
             *reason = @"The source compiler returned duplicate resource indices";
             return false;
         }

@@ -4,10 +4,10 @@
 Indium и Vulkan. Компиляция MSL из исходного текста через mslc, простые фигуры,
 анимация и проверка результата чтением пикселей с GPU.
 
-![Текстуры и вращающийся куб в настоящем окне Darling](docs/media/materials-animation.gif)
+![Текстуры и вращающийся куб в настоящем окне Darling](docs/media/lighting-animation.gif)
 
-**[Видео реального окна — MP4](docs/media/shapes-animation.mp4)** ·
-**[Скриншот](docs/media/shapes-window.png)** ·
+**[Видео реального окна — MP4](docs/media/lighting-animation.mp4)** ·
+**[Скриншот](docs/media/lighting-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/japNslow/darling-metalapi/releases)**
 
 ## Что работает
@@ -27,10 +27,35 @@ Indium и Vulkan. Компиляция MSL из исходного текста 
 mslc, адаптацию buffer reflection, исправление ранней инициализации слоя NSView
 и проверяемое демо. Это не полная реализация Metal.
 
-Source bridge поддерживает sampled textures и отдельные samplers. Storage textures,
-embedded samplers и пользовательские compile options пока возвращают Unsupported. Сглаживание и прозрачность не заявляются как
+Source bridge поддерживает sampled textures, отдельные и встроенные `constexpr` samplers,
+а также `texture2d` с `access::read`, `write`, `read_write`. Произвольные
+compile options, массивы/кубические storage textures и mip-операции не заявлены. Сглаживание и прозрачность не заявляются как
 проверенные возможности этой демонстрации. [Карта возможностей](docs/UPSTREAM-STUDY.md).
+На lavapipe storage-ядра проходят, но material nearest-sampling пока даёт
+расхождение в проверке угла; полная сцена проверена на Intel Iris Xe.
 Результаты проверки релиза — в [VALIDATION.md](VALIDATION.md).
+
+## Новое в v0.3.0
+
+- Движущийся точечный источник света: нормали граней, Lambert diffuse,
+  ambient и затухание по расстоянию. Кнопка **Динамический свет** включает
+  освещение куба; плоское превью показывает исходную текстуру.
+- Текстуры материалов загружаются compute-ядром через `access::write`.
+  `access::read_write` в mslc и Indium проверен настоящим изменением пикселей
+  на месте и обратным проходом. GPU-проверка: RGBA8Unorm, 8×8 и 7×5.
+- Встроенный `constexpr sampler` с linear/repeat работает независимо
+  от внешнего sampler binding. Сохранены отдельные nearest/linear проверки.
+- Интегрированы 14 новых коммитов darling-metal до
+  [`643f571`](https://github.com/darlinghq/darling-metal/commit/643f57199d7b9eb5246a79e7568ffe6c7ad9e723):
+  lazy initialization, дополнительные value API, enqueue/waitUntilScheduled,
+  compile-options properties и исправления публичных заголовков.
+- mslc: 2 573 теста прошли; исходный Indium shader corpus — 7/7 до и после.
+
+`prepare.py` применяет включённый `patches/mslc-read-write.patch` к отдельной
+копии закреплённого MIT-компилятора в checkout Darling; оригинальный подмодуль
+`deps/mslc` остаётся нетронутым. Это локальная доработка для открытой
+[задачи mslc #96](https://github.com/cristim/mslc/issues/96), а не заявление,
+что изменение уже принято upstream.
 
 ## Новая 3D-сцена из исходников
 
@@ -52,7 +77,7 @@ python3 run.py cube-window \
 граней и обнаружение отключённого depth test. Каждый порядок рисования дал
 ноль несовпадений на 1 212 376 пикселях вне зоны рёбер. Подробнее —
 [demo/README.md](demo/README.md#rotating-3d-cube).
-Куб и выбор текстур включены в готовый архив v0.2.0.
+Куб, текстуры и динамический свет включены в готовый архив v0.3.0.
 
 ## Выбор текстур: бетон и дерево
 
@@ -70,7 +95,7 @@ fragment buffer 6 / texture 2 / sampler 4, UV на кубе и переключ�
 отсчётах. Проверка другим материалом намеренно обнаруживает расхождения.
 Режимы проверки: `textures-offscreen` и `textures-window-test`.
 
-## Готовая сборка v0.2.0
+## Готовая сборка v0.3.0
 
 В Releases находится **binary overlay Linux x86_64**, включающий Metal,
 MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
@@ -81,10 +106,11 @@ MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
 Сборка проверена на Arch Linux, glibc 2.44, LLVM 23.1.5 и Intel Iris Xe с Mesa.
 Нужны Vulkan 1.3, timeline semaphores и совместимый драйвер OpenGL для окна.
 Зависимости хоста, включая libLLVM того же major, не упакованы.
+Для сборки из исходников также нужна утилита `patch`.
 Runner использует rootless user namespaces, `unshare`, `setpriv`,
 `newuidmap`/`newgidmap` и настроенные subordinate UID/GID ranges.
 
-Распакуйте `darling-metalapi-v0.2.0-linux-x86_64.tar.gz`. В командах ниже
+Распакуйте `darling-metalapi-v0.3.0-linux-x86_64.tar.gz`. В командах ниже
 `/path/to/darling-prefix` — каталог установки Darling, содержащий `bin/darling`,
 а не пользовательский DPREFIX. Остановите приложения, использующие эту установку.
 

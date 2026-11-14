@@ -14,7 +14,7 @@ Exact upstream revisions are recorded in `upstream.json`.
 
 The `metal/` source snapshot is intentionally retained with its own notices and
 directory structure. It is based on upstream commit
-`51bc1937a0cd6472458d084dfe3ba3ca3b4ea3a4`; source-library compilation,
+`643f57199d7b9eb5246a79e7568ffe6c7ad9e723`; source-library compilation,
 reflection adaptation and build integration are local changes. The separate
 `metal/THIRD-PARTY-NOTICES.md` describes the optional mslc integration.
 
@@ -33,3 +33,17 @@ Research and implementation used public Metal/NSView contracts, the public mslc
 C API and open Indium interfaces. No restricted Apple source, CoreCrypto source,
 Apple binary disassembly or decompilation was used. The screenshot and video
 show the independently authored demo running in a real Darling window.
+
+For v0.3.0, mslc read/write texture access is extended by the independently
+written `patches/mslc-read-write.patch` (including compiler contract probes).
+The base is the MIT-licensed revision in upstream.json; the patch does not
+claim upstream acceptance. Indium viewport and storage image compatibility
+changes are in `patches/indium-compatibility.patch` (0BSD).
+
+Provenance: public Metal Shading Language texture/sampler contracts
+(https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf),
+public Metal usage flags, the Khronos Vulkan descriptor/storage-image contract
+(https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html), and the
+licensed mslc/Indium interfaces. No third-party implementation was copied into
+the new compiler feature. New upstream Metal files retain their MPL notices;
+upstream guest tests are not redistributed in this snapshot.

@@ -1,0 +1,284 @@
+diff --git a/src/ast.cpp b/src/ast.cpp
+index 6c29311..c3dab49 100644
+--- a/src/ast.cpp
++++ b/src/ast.cpp
+@@ -43,7 +43,8 @@ std::string typeName(const Type& type) {
+ 	if (type.isTexture()) {
+ 		return std::string(resourceKindName(type.resource)) + "<" + scalarKindName(type.scalar)
+ 			+ (type.textureAccess == TextureAccess::Write ? ", access::write>"
+-				: type.textureAccess == TextureAccess::Read ? ", access::read>" : ">");
++				: type.textureAccess == TextureAccess::Read ? ", access::read>"
++                : type.textureAccess == TextureAccess::ReadWrite ? ", access::read_write>" : ">");
+ 	}
+ 
+ 	std::string name = type.isAuto ? std::string("auto")
+diff --git a/src/ast.h b/src/ast.h
+index 87f3673..11dffbe 100644
+--- a/src/ast.h
++++ b/src/ast.h
+@@ -56,7 +56,7 @@ enum class ResourceKind {
+ 	Sampler,
+ };
+ 
+-enum class TextureAccess { Sample, Write, Read };
++enum class TextureAccess { Sample, Write, Read, ReadWrite };
+ 
+ struct Type {
+ 	// Scalar base. For a named type, a pointer, or an array, the base is the
+diff --git a/src/parser.cpp b/src/parser.cpp
+index 83b4d56..2c808de 100644
+--- a/src/parser.cpp
++++ b/src/parser.cpp
+@@ -2804,19 +2804,21 @@ void Parser::parseResourceType(Type& type) {
+ 		access = std::string(advance().text);
+ 		const bool readTexture = name == "texture2d" && access == "read";
+ 		const bool writeTexture = name == "texture2d" && access == "write";
+-		if (access != "sample" && !readTexture && !writeTexture) {
++        const bool readWriteTexture = name == "texture2d" && access == "read_write";
++		if (access != "sample" && !readTexture && !writeTexture && !readWriteTexture) {
+ 			throw CompileError(name + " access::" + access + " is not lowered yet; mslc lowers "
+-				"access::sample, which is the default, texture2d access::read, and texture2d access::write");
++				"access::sample, which is the default, and texture2d access::read, access::write or access::read_write");
+ 		}
+ 	}
+ 
+ 	expect(TokenKind::Greater, ("to close the sampled type of " + name).c_str());
+ 	type.resource = lowered->second;
+-	if (component == "uint" && !(name == "texture2d" && (access == "write" || access == "read"))) {
+-		throw CompileError(name + "<uint> is not lowered yet; mslc lowers uint only with texture2d access::read or access::write");
++	if (component == "uint" && !(name == "texture2d" && (access == "write" || access == "read" || access == "read_write"))) {
++		throw CompileError(name + "<uint> is not lowered yet; mslc lowers uint only with texture2d access::read, access::write or access::read_write");
+ 	}
+ 	type.textureAccess = access == "write" ? TextureAccess::Write
+-		: access == "read" ? TextureAccess::Read : TextureAccess::Sample;
++		: access == "read" ? TextureAccess::Read
++        : access == "read_write" ? TextureAccess::ReadWrite : TextureAccess::Sample;
+ 	type.scalar = component == "uint" ? ScalarKind::UInt
+ 		: component == "half" ? ScalarKind::Half : ScalarKind::Float;
+ }
+diff --git a/src/sema.cpp b/src/sema.cpp
+index cd798b2..600ae46 100644
+--- a/src/sema.cpp
++++ b/src/sema.cpp
+@@ -1265,14 +1265,14 @@ Id TypeTable::image(ResourceKind kind) {
+ }
+ 
+ Id TypeTable::storageImage(TextureAccess access, ScalarKind element) {
+-	const bool read = access == TextureAccess::Read;
+-	bool& declared = read ? _storageReadDeclared : _storageWriteDeclared;
+-	if (!declared) {
+-		declared = true;
+-		_builder.emit(spirv::OpCapability, { static_cast<uint32_t>(read
+-			? spirv::Capability::StorageImageReadWithoutFormat
+-			: spirv::Capability::StorageImageWriteWithoutFormat) });
+-	}
++    if (access != TextureAccess::Write && !_storageReadDeclared) {
++        _storageReadDeclared = true;
++        _builder.emit(spirv::OpCapability, { static_cast<uint32_t>(spirv::Capability::StorageImageReadWithoutFormat) });
++    }
++    if (access != TextureAccess::Read && !_storageWriteDeclared) {
++        _storageWriteDeclared = true;
++        _builder.emit(spirv::OpCapability, { static_cast<uint32_t>(spirv::Capability::StorageImageWriteWithoutFormat) });
++    }
+ 	Id& cached = _storageImages[element];
+ 	if (cached == InvalidId) {
+ 		cached = _builder.emitDecl(spirv::OpTypeImage, { scalar(element),
+@@ -7175,7 +7175,8 @@ namespace {
+ 				+ ", \"descriptor\": " + descriptorJson(binding)
+ 				+ ", \"texture_access\": \""
+ 				+ (entry.parameter->type.textureAccess == TextureAccess::Write ? "Write"
+-					: entry.parameter->type.textureAccess == TextureAccess::Read ? "Read" : "Sample") + "\""
++					: entry.parameter->type.textureAccess == TextureAccess::Read ? "Read"
++                    : entry.parameter->type.textureAccess == TextureAccess::ReadWrite ? "ReadWrite" : "Sample") + "\""
+ 				+ ", \"param_index\": " + std::to_string(entry.index)
+ 				+ ", \"name\": \"" + entry.parameter->name + "\" }");
+ 		}
+@@ -7439,7 +7440,7 @@ namespace {
+ 	// texture is refused, a float scalar into a half texture is not). The
+ 	// coordinate is a uint2 or a ushort2; an explicit lod is not lowered.
+ 	void Emitter::emitTextureWrite(const Expression& call, const Binding& texture) {
+-		if (texture.pointeeMsl.textureAccess != TextureAccess::Write) {
++		if (texture.pointeeMsl.textureAccess != TextureAccess::Write && texture.pointeeMsl.textureAccess != TextureAccess::ReadWrite) {
+ 			throw CompileError("the texture method \"write\" is not lowered yet on textures that are not access::write");
+ 		}
+ 		const ScalarKind element = texture.pointeeMsl.scalar;
+@@ -7491,13 +7492,13 @@ namespace {
+ 			}
+ 			return emitTextureSize(call, texture, SizeComponent::Width);
+ 		}
+-		if (texture.pointeeMsl.textureAccess == TextureAccess::Read) {
++		if (texture.pointeeMsl.textureAccess == TextureAccess::Read || texture.pointeeMsl.textureAccess == TextureAccess::ReadWrite) {
+ 			if (method == "read") return emitTextureRead(call, texture);
+ 			if (method == "get_width" || method == "get_height") {
+ 				return emitTextureSize(call, texture,
+ 					method == "get_width" ? SizeComponent::Width : SizeComponent::Height);
+ 			}
+-			throw CompileError("access::read textures lower only read(), get_width() and get_height(); \""
++			throw CompileError(std::string(texture.pointeeMsl.textureAccess == TextureAccess::Read ? "access::read" : "access::read_write") + " textures lower only read(), get_width() and get_height(); \""
+ 				+ method + "\" is not lowered yet");
+ 		}
+ 		if (method == "sample") {
+@@ -7693,7 +7694,7 @@ namespace {
+ 		const auto& arguments = call.arguments;
+ 		const bool arrayed = texture.pointeeMsl.resource == ResourceKind::Texture2DArray;
+ 		const size_t fixed = arrayed ? 2 : 1;
+-		const bool storage = texture.pointeeMsl.textureAccess == TextureAccess::Read;
++		const bool storage = texture.pointeeMsl.textureAccess == TextureAccess::Read || texture.pointeeMsl.textureAccess == TextureAccess::ReadWrite;
+ 		if (storage && arguments.size() == fixed + 1) {
+ 			throw CompileError("mip arguments are unsupported on access::read textures; read takes only a coordinate");
+ 		}
+@@ -7741,7 +7742,7 @@ namespace {
+ 	// 1 and 2 of the size), of level 0 or of the lod given.
+ 	Id Emitter::emitTextureSize(const Expression& call, const Binding& texture, SizeComponent component) {
+ 		const std::string& name = call.left->memberName;
+-		const bool readOnly = texture.pointeeMsl.textureAccess == TextureAccess::Read;
++		const bool readOnly = texture.pointeeMsl.textureAccess == TextureAccess::Read || texture.pointeeMsl.textureAccess == TextureAccess::ReadWrite;
+ 		if (readOnly && !call.arguments.empty()) {
+ 			throw CompileError("mip arguments are unsupported on access::read textures; " + name + " takes no arguments");
+ 		}
+diff --git a/tests/probes/read_write_bad_coordinate.metal b/tests/probes/read_write_bad_coordinate.metal
+new file mode 100644
+index 0000000..a0bb80b
+--- /dev/null
++++ b/tests/probes/read_write_bad_coordinate.metal
+@@ -0,0 +1,4 @@
++// EXPECT: error coordinate of read has to be
++#include <metal_stdlib>
++using namespace metal;
++kernel void invalid_coord(texture2d<float,access::read_write> image) { float4 value=image.read(int2(0,0)); }
+diff --git a/tests/probes/read_write_bad_value.metal b/tests/probes/read_write_bad_value.metal
+new file mode 100644
+index 0000000..ca448b4
+--- /dev/null
++++ b/tests/probes/read_write_bad_value.metal
+@@ -0,0 +1,4 @@
++// EXPECT: error texture write takes exactly
++#include <metal_stdlib>
++using namespace metal;
++kernel void invalid_value(texture2d<float,access::read_write> image) { image.write(float3(1,2,3),uint2(0,0)); }
+diff --git a/tests/probes/read_write_bad_write_coordinate.metal b/tests/probes/read_write_bad_write_coordinate.metal
+new file mode 100644
+index 0000000..83b590f
+--- /dev/null
++++ b/tests/probes/read_write_bad_write_coordinate.metal
+@@ -0,0 +1,4 @@
++// EXPECT: error texture write takes exactly
++#include <metal_stdlib>
++using namespace metal;
++kernel void invalid_write(texture2d<float,access::read_write> image) {image.write(float4(1),int2(0,0));}
+diff --git a/tests/probes/read_write_float_modify.metal b/tests/probes/read_write_float_modify.metal
+new file mode 100644
+index 0000000..44737fa
+--- /dev/null
++++ b/tests/probes/read_write_float_modify.metal
+@@ -0,0 +1,15 @@
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
++// DISASM: OpImageRead
++// DISASM: OpImageWrite
++// DISASM: StorageImageReadWithoutFormat
++// DISASM: StorageImageWriteWithoutFormat
++// DISASM-NOT: NonReadable
++// DISASM-NOT: NonWritable
++#include <metal_stdlib>
++using namespace metal;
++kernel void rw_float(texture2d<float,access::read_write> image [[texture(3)]],uint2 p [[thread_position_in_grid]]) {
++    if (p.x<image.get_width() && p.y<image.get_height()) {
++        float4 value=image.read(p);image.write(float4(value.z,value.y,value.x,value.w),p);
++    }
++}
+diff --git a/tests/probes/read_write_half_helper.metal b/tests/probes/read_write_half_helper.metal
+new file mode 100644
+index 0000000..8f94a78
+--- /dev/null
++++ b/tests/probes/read_write_half_helper.metal
+@@ -0,0 +1,8 @@
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
++// DISASM: OpImageRead
++// DISASM: OpImageWrite
++#include <metal_stdlib>
++using namespace metal;
++void update_half(texture2d<half,access::read_write> image,uint2 p) { half4 value=image.read(p);image.write(value,p); }
++kernel void rw_half(texture2d<half,access::read_write> image [[texture(2)]],uint2 p [[thread_position_in_grid]]) { update_half(image,p); }
+diff --git a/tests/probes/read_write_helper_mismatch.metal b/tests/probes/read_write_helper_mismatch.metal
+new file mode 100644
+index 0000000..5f28dca
+--- /dev/null
++++ b/tests/probes/read_write_helper_mismatch.metal
+@@ -0,0 +1,5 @@
++// EXPECT: error which is not a texture2d<float, access::read>
++#include <metal_stdlib>
++using namespace metal;
++float4 read_only(texture2d<float,access::read> image,uint2 p) {return image.read(p);}
++kernel void invalid_helper(texture2d<float,access::read_write> image,uint2 p [[thread_position_in_grid]]) {float4 value=read_only(image,p);}
+diff --git a/tests/probes/read_write_mip_rejected.metal b/tests/probes/read_write_mip_rejected.metal
+new file mode 100644
+index 0000000..612fcc3
+--- /dev/null
++++ b/tests/probes/read_write_mip_rejected.metal
+@@ -0,0 +1,4 @@
++// EXPECT: error mip arguments are unsupported
++#include <metal_stdlib>
++using namespace metal;
++kernel void invalid_mip(texture2d<float,access::read_write> image) {float4 value=image.read(uint2(0),1);}
+diff --git a/tests/probes/read_write_mixed_access.metal b/tests/probes/read_write_mixed_access.metal
+new file mode 100644
+index 0000000..a480031
+--- /dev/null
++++ b/tests/probes/read_write_mixed_access.metal
+@@ -0,0 +1,9 @@
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
++// DISASM: StorageImageReadWithoutFormat
++// DISASM: StorageImageWriteWithoutFormat
++// DISASM: NonReadable
++// DISASM: NonWritable
++#include <metal_stdlib>
++using namespace metal;
++kernel void mixed_access(texture2d<float,access::read> input [[texture(1)]],texture2d<float,access::write> output [[texture(2)]],texture2d<float,access::read_write> image [[texture(3)]],uint2 p [[thread_position_in_grid]]) { float4 a=input.read(p);float4 b=image.read(p);image.write(a+b,p);output.write(b,p); }
+diff --git a/tests/probes/read_write_sample_rejected.metal b/tests/probes/read_write_sample_rejected.metal
+new file mode 100644
+index 0000000..b0b1719
+--- /dev/null
++++ b/tests/probes/read_write_sample_rejected.metal
+@@ -0,0 +1,4 @@
++// EXPECT: error access::read_write textures lower only
++#include <metal_stdlib>
++using namespace metal;
++kernel void invalid_sample(texture2d<float,access::read_write> image,sampler sampling) { float4 value=image.sample(sampling,float2(.5f,.5f)); }
+diff --git a/tests/probes/read_write_uint_modify.metal b/tests/probes/read_write_uint_modify.metal
+new file mode 100644
+index 0000000..2b5c7e4
+--- /dev/null
++++ b/tests/probes/read_write_uint_modify.metal
+@@ -0,0 +1,7 @@
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
++// DISASM: OpImageRead
++// DISASM: OpImageWrite
++#include <metal_stdlib>
++using namespace metal;
++kernel void rw_uint(texture2d<uint,access::read_write> image [[texture(1)]],uint2 p [[thread_position_in_grid]]) { uint4 value=image.read(p);image.write(value.x+1u,p); }
+diff --git a/tests/probes/texture2d_uint_write_read_access.metal b/tests/probes/texture2d_uint_write_read_access.metal
+index 538b7f5..a2db95a 100644
+--- a/tests/probes/texture2d_uint_write_read_access.metal
++++ b/tests/probes/texture2d_uint_write_read_access.metal
+@@ -1,4 +1,5 @@
+-// EXPECT: error is not lowered yet
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
+ #include <metal_stdlib>
+ using namespace metal;
+ kernel void hit(texture2d<uint, access::read_write> dst) {}
+diff --git a/tests/probes/texture2d_uint_write_read_write.metal b/tests/probes/texture2d_uint_write_read_write.metal
+index 538b7f5..a2db95a 100644
+--- a/tests/probes/texture2d_uint_write_read_write.metal
++++ b/tests/probes/texture2d_uint_write_read_write.metal
+@@ -1,4 +1,5 @@
+-// EXPECT: error is not lowered yet
++// EXPECT: valid
++// REFLECT: "texture_access": "ReadWrite"
+ #include <metal_stdlib>
+ using namespace metal;
+ kernel void hit(texture2d<uint, access::read_write> dst) {}

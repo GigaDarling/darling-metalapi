@@ -1,8 +1,28 @@
 {
-  "darling": {"url": "https://github.com/darlinghq/darling.git", "revision": "b5e94cd7347616c015e327711028d48a1a459888"},
-  "metal": {"url": "https://github.com/darlinghq/darling-metal.git", "revision": "51bc1937a0cd6472458d084dfe3ba3ca3b4ea3a4"},
-  "indium": {"url": "https://github.com/darlinghq/indium.git", "revision": "15e3a7ba071f2ffc4df542a6e7c76783fd350441"},
-  "mslc": {"url": "https://github.com/cristim/mslc.git", "revision": "6964bb3984e26de95bbca89b08f305a6c4ff3317"},
-  "cocotron": {"url": "https://github.com/darlinghq/darling-cocotron.git", "revision": "b56842a972a89386addf493748d517f36395a89f"},
-  "darlingserver": {"url": "https://github.com/darlinghq/darlingserver.git", "revision": "7c1e6d2d2b2e14774568127bed574dc8cc91925a"}
+  "darling": {
+    "url": "https://github.com/darlinghq/darling.git",
+    "revision": "b5e94cd7347616c015e327711028d48a1a459888"
+  },
+  "metal": {
+    "url": "https://github.com/darlinghq/darling-metal.git",
+    "revision": "643f57199d7b9eb5246a79e7568ffe6c7ad9e723",
+    "integration_revision": "51bc1937a0cd6472458d084dfe3ba3ca3b4ea3a4"
+  },
+  "indium": {
+    "url": "https://github.com/darlinghq/indium.git",
+    "revision": "15e3a7ba071f2ffc4df542a6e7c76783fd350441"
+  },
+  "mslc": {
+    "url": "https://github.com/cristim/mslc.git",
+    "revision": "6964bb3984e26de95bbca89b08f305a6c4ff3317",
+    "patch": "patches/mslc-read-write.patch"
+  },
+  "cocotron": {
+    "url": "https://github.com/darlinghq/darling-cocotron.git",
+    "revision": "b56842a972a89386addf493748d517f36395a89f"
+  },
+  "darlingserver": {
+    "url": "https://github.com/darlinghq/darlingserver.git",
+    "revision": "7c1e6d2d2b2e14774568127bed574dc8cc91925a"
+  }
 }

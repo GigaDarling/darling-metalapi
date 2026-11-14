@@ -155,3 +155,20 @@ MIT/ISC notices. Текст `deps/indium/LICENSE` соответствует 0BS
 В этой работе внешняя реализация в наш код не переносилась.
 CoreCrypto и другие ограниченные исходники Apple не использовались;
 дизассемблирование и декомпиляция Apple binaries не выполнялись.
+
+
+## Обновление v0.3.0 — 2026-11-14
+
+Интегрированы 14 upstream-коммитов до `643f57199d7b9eb5246a79e7568ffe6c7ad9e723`.
+Снимок сохраняет MPL-2.0 notices; новые upstream guest-тесты не копировались.
+Изменения: lazy Indium init/fini, device capability queries, enqueue/scheduling,
+compile-options value API, сигнатуры stub-методов и обработка drawable errors.
+Это обновление открытой реализации; оно не делает полноценными сами stubs.
+
+Старая таблица выше описывает первоначальный аудит. Теперь source bridge
+принимает sampled и storage texture2d (read/write/read_write), explicit и
+embedded constexpr samplers. RGBA8 float load/store проверены чтением с GPU,
+mslc read_write дополнен отдельным MIT-патчем с позитивными/негативными probes.
+Динамический точечный свет и нормали реализованы в самостоятельно написанном
+MSL-демо; неподвижная геометрия с разными позициями света сравнивается с
+независимым CPU-эталоном. Полная поддержка Metal, форматов и mip-операций не заявляется.

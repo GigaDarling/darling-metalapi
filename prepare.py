@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parent
 
@@ -24,9 +25,10 @@ def main():
                     "mslc": ROOT / "deps/mslc"}
     for name, path in repositories.items():
         revision = subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
-        if revision != manifest[name]["revision"]:
-            parser.error(f"{name}: expected {manifest[name]['revision']}, got {revision}")
-    for name in ("metal", "cocotron", "darlingserver", "indium"):
+        expected = manifest[name].get("integration_revision", manifest[name]["revision"])
+        if revision != expected:
+            parser.error(f"{name}: expected {expected}, got {revision}")
+    for name in ("metal", "cocotron", "darlingserver", "indium", "mslc"):
         status = subprocess.check_output(["git", "-C", str(repositories[name]),
                                           "status", "--porcelain", "--untracked-files=normal"], text=True)
         if status:
@@ -39,10 +41,23 @@ def main():
     patches = [(darling, "darling-tools.patch"),
                (repositories["cocotron"], "cocotron-layer-init.patch"),
                (repositories["darlingserver"], "darlingserver-openssl4.patch"),
-               (repositories["indium"], "indium-viewport.patch")]
+               (repositories["indium"], "indium-compatibility.patch")]
     # Check every patch before making the first change.
     for path, patch in patches:
         subprocess.run(["git", "-C", str(path), "apply", "--check", str(ROOT / "patches" / patch)], check=True)
+    compiler_target = darling / "build/metal-baseline/vendor/mslc"
+    if compiler_target.exists():
+        parser.error(f"compiler integration target already exists: {compiler_target}")
+    compiler_patch = ROOT / manifest["mslc"]["patch"]
+    # Prepare the compiler in isolation, leaving the pinned submodule untouched.
+    with tempfile.TemporaryDirectory(prefix="metalapi-mslc-") as temporary:
+        prepared = Path(temporary) / "mslc"
+        shutil.copytree(repositories["mslc"], prepared,
+                        ignore=shutil.ignore_patterns(".git", "build", "__pycache__"))
+        subprocess.run(["patch", "--batch", "--forward", "-p1", "--directory", str(prepared),
+                        "--input", str(compiler_patch)], check=True)
+        if not args.check:
+            shutil.copytree(prepared, compiler_target)
     if args.check:
         print("PASS pinned revisions, clean integration targets and all patches")
         return

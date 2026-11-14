@@ -23,6 +23,29 @@ static void expectMetal(bool condition, const char* message) {
     if (!condition) { std::fprintf(stderr, "FAIL %s\n", message); std::exit(1); }
 }
 
+// Cold-start integration check for the updated open Metal implementation.
+static void verifyUpstreamValueAPIs() {
+    MTLCompileOptions* options=[MTLCompileOptions new];
+    options.fastMathEnabled=NO;
+    expectMetal(options.mathMode==MTLMathModeSafe,"compile options safe math round trip");
+    options.mathMode=MTLMathModeFast;
+    expectMetal(options.fastMathEnabled,"compile options fast math alias");
+    options.preprocessorMacros=@{@"API_TEST":@7};
+    options.languageVersion=MTLLanguageVersion3_2;
+    MTLCompileOptions* copy=[options copy];options.preprocessorMacros=@{@"API_TEST":@8};
+    expectMetal([copy.preprocessorMacros[@"API_TEST"] intValue]==7 && copy.languageVersion==MTLLanguageVersion3_2,
+        "compile options independently preserve copied public values");
+    [copy release];[options release];
+    FILE* maps=std::fopen("/Volumes/SystemRoot/proc/self/maps","r");
+    if (maps) {
+        bool loaded=false;char line[1024];
+        while (std::fgets(line,sizeof(line),maps)) if (std::strstr(line,"libvulkan")) loaded=true;
+        std::fclose(maps);expectMetal(!loaded,"loading Metal and its value objects leaves Vulkan uninitialized");
+        std::printf("PASS lazy Metal initialization before requesting a device\n");
+    }
+    std::printf("PASS updated upstream compile-options value and copy APIs\n");
+}
+
 @interface EarlyLayerView : NSView
 @end
 @implementation EarlyLayerView
@@ -49,6 +72,7 @@ static void expectMetal(bool condition, const char* message) {
     MaterialRenderer* _materials;
     NSButton* _materialButtons[2];
     NSTextField* _materialLabel;
+    NSButton* _lightingButton;
 }
 - (void)verifyOffscreen: (const char*)path;
 - (void)verifyShapes: (const char*)path;
@@ -68,6 +92,9 @@ static void expectMetal(bool condition, const char* message) {
     _device = MTLCreateSystemDefaultDevice();
     expectMetal(_device != nil, "MTLCreateSystemDefaultDevice");
     std::printf("DEVICE %s\n", [_device.name UTF8String]);
+    auto tier=[_device argumentBuffersSupport];
+    expectMetal(tier==MTLArgumentBuffersTier1 || tier==MTLArgumentBuffersTier2,"upstream argument-buffer tier query");
+    (void)[_device supportsShaderBarycentricCoordinates];
     NSError* error = nil;
     id<MTLLibrary> library = [_device newLibraryWithSource:
         [NSString stringWithUTF8String: baselineShaderSource] options: nil error: &error];
@@ -124,7 +151,7 @@ static void expectMetal(bool condition, const char* message) {
     [encoder setComputePipelineState: compute];
     [encoder setBuffer: output offset: 0 atIndex: 5];
     [encoder dispatchThreads: MTLSizeMake(1, 1, 1) threadsPerThreadgroup: MTLSizeMake(1, 1, 1)];
-    [encoder endEncoding]; [command commit]; [command waitUntilCompleted];
+    [encoder endEncoding]; [command enqueue]; [command commit]; [command waitUntilScheduled]; [command waitUntilCompleted];
     std::memcpy(&readback, output.contents, sizeof(readback));
     expectMetal(readback == 1, "source buffer at a nonzero Metal index writes the expected value");
     [output release]; [compute release]; [function release]; [resourceLibrary release];
@@ -135,10 +162,10 @@ static void expectMetal(bool condition, const char* message) {
     expectMetal(sampled && !error,"source sampled texture and sampler resources compile");
     [sampled release];
     error=nil;
-    expectMetal([_device newLibraryWithSource:
+    id<MTLLibrary> embedded=[_device newLibraryWithSource:
         @"#include <metal_stdlib>\nusing namespace metal;\nfragment float4 embedded_probe(texture2d<float> image [[texture(0)]]) { constexpr sampler filtering(coord::normalized, address::repeat, filter::linear); return image.sample(filtering,float2(.5f,.5f)); }"
-        options:nil error:&error] == nil && error.code == MTLLibraryErrorUnsupported,
-        "unsupported embedded source sampler reports an error");
+        options:nil error:&error];
+    expectMetal(embedded && !error,"embedded source sampler compiles");[embedded release];
     std::printf("PASS source buffer reflection and compute readback at index 5\n");
     if (shapesMode) [self prepareShapes];
     if (materialsMode) _materials = [[MaterialRenderer alloc] initWithDevice:_device queue:_queue];
@@ -149,6 +176,8 @@ static void expectMetal(bool condition, const char* message) {
 
 - (void)verifyCube: (const char*)path { [_cube verifyOffscreen: path]; }
 - (void)verifyMaterials: (const char*)path { [_materials verifyOffscreen:path]; }
+
+- (void)toggleLighting:(NSButton*)sender { _materials.lightingEnabled=[sender state]==NSControlStateValueOn; }
 
 - (void)chooseMaterial: (NSButton*)sender {
     _materials.selection=[sender tag];
@@ -315,7 +344,7 @@ static void expectMetal(bool condition, const char* message) {
     _window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, initialSize.width, initialSize.height)
         styleMask: NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask
         backing: NSBackingStoreBuffered defer: NO];
-    [_window setTitle: materialsMode ? @"Darling Metal - Texture preview" : cubeMode ? @"Darling Metal - Rotating 3D cube" :
+    [_window setTitle: materialsMode ? @"Darling Metal - Dynamic light and textures" : cubeMode ? @"Darling Metal - Rotating 3D cube" :
         shapesMode ? @"Darling Metal - Shapes in motion" : @"Darling Metal - Render verification"];
     [_window setReleasedWhenClosed: NO];
     [_window setDelegate: self];
@@ -337,7 +366,11 @@ static void expectMetal(bool condition, const char* message) {
             [button setTarget:self];[button setAction:@selector(chooseMaterial:)];
             [button setAutoresizingMask:NSViewMinYMargin];[content addSubview:button];_materialButtons[i]=button;
         }
-        _materialLabel=[[NSTextField alloc] initWithFrame:NSMakeRect(365,initialSize.height-51,610,30)];
+        _lightingButton=[[NSButton alloc] initWithFrame:NSMakeRect(365,initialSize.height-52,190,32)];
+        [_lightingButton setTitle:@"Динамический свет"];[_lightingButton setButtonType:NSPushOnPushOffButton];
+        [_lightingButton setState:NSControlStateValueOn];[_lightingButton setTarget:self];[_lightingButton setAction:@selector(toggleLighting:)];
+        [_lightingButton setAutoresizingMask:NSViewMinYMargin];[content addSubview:_lightingButton];
+        _materialLabel=[[NSTextField alloc] initWithFrame:NSMakeRect(570,initialSize.height-51,405,30)];
         [_materialLabel setEditable:NO];[_materialLabel setSelectable:NO];[_materialLabel setBezeled:NO];[_materialLabel setDrawsBackground:NO];
         [_materialLabel setAutoresizingMask:NSViewWidthSizable|NSViewMinYMargin];[content addSubview:_materialLabel];
         [self chooseMaterial:_materialButtons[0]];
@@ -360,6 +393,8 @@ static void expectMetal(bool condition, const char* message) {
     if (materialsMode) {
         [_materialButtons[_windowCheckStep==0?1:0] performClick:nil];
         expectMetal(_materials.selection==(_windowCheckStep==0?1:0),"material button action updates selection");
+        [_lightingButton performClick:nil];
+        expectMetal(_materials.lightingEnabled==(_windowCheckStep==1),"dynamic light toggle action updates renderer");
     }
     NSSize renderSize=NSMakeSize(size.width,size.height-(materialsMode?70:0));
     expectMetal(NSEqualSizes(_view.bounds.size, renderSize), "window content follows resize");
@@ -398,7 +433,7 @@ static void expectMetal(bool condition, const char* message) {
     [NSApp terminate: nil];
 }
 - (void)dealloc {
-    [_materials release];[_materialLabel release];
+    [_materials release];[_materialLabel release];[_lightingButton release];
     for (NSButton* button:_materialButtons) [button release];
     [_cube release];
     for (id<MTLBuffer> buffer : _shapeBuffers) [buffer release];
@@ -411,6 +446,7 @@ static void expectMetal(bool condition, const char* message) {
 int main(int argc, char** argv) {
     @autoreleasepool {
         expectMetal(argc == 2 || argc == 3, "Usage: metal-baseline-demo --[shapes-/cube-]offscreen image.ppm | --[shapes-/cube-]window | --[shapes-/cube-]window-test");
+        verifyUpstreamValueAPIs();
         shapesMode = std::strncmp(argv[1], "--shapes-", 9) == 0;
         materialsMode = std::strncmp(argv[1], "--textures-", 11) == 0;
         cubeMode = std::strncmp(argv[1], "--cube-", 7) == 0;

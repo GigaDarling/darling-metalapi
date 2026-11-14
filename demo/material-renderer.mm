@@ -2,13 +2,16 @@
 #import "material-renderer.h"
 #include "cube-validation.hpp"
 #include "material-textures.hpp"
+#include "material-lighting.hpp"
+#import "texture-operations.h"
 #include "metal-baseline-source.h"
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 
 namespace {
-struct Vertex { Cube::Float4 position, detail; };
+struct Vertex { Cube::Float4 position, detail, normal; };
+static_assert(sizeof(Vertex)==48,"MSL material vertex layout");
 constexpr float shades[] = {0.98f,0.64f,0.82f,0.70f,1.0f,0.52f};
 void requireMaterial(bool value,const char* message) {
     if (!value) { std::fprintf(stderr,"FAIL materials: %s\n",message); std::exit(1); }
@@ -30,7 +33,7 @@ std::array<double,4> sample(const std::vector<unsigned char>& data,double u,doub
     }
     return result;
 }
-size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned height,float time,unsigned material) {
+size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned height,float time,unsigned material,bool lighting=false,float lightTime=0) {
     auto image=Materials::texture(material);auto area=layout(width,height);
     size_t checked=0,mismatches=0,cube=0,preview=0;
     for (unsigned y=2;y+2<height;y+=3) for (unsigned x=2;x+2<width;x+=3) {
@@ -49,7 +52,10 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
                 else if (face<4) { u=(1+(face==2?-hit[2]:hit[2]))*.5;v=(1-hit[1])*.5; }
                 else { u=(1+hit[0])*.5;v=(1+(face==4?hit[2]:-hit[2]))*.5; }
                 expected=sample(image,u,v);
-                for (unsigned c=0;c<3;++c) expected[c]*=shades[face];
+                if (lighting) {
+                    auto amount=Materials::illumination(hit,face,time,lightTime);
+                    for (unsigned c=0;c<3;++c) expected[c]=std::clamp(expected[c]*amount[c],0.0,255.0);
+                } else for (unsigned c=0;c<3;++c) expected[c]*=shades[face];
                 ++cube;
             }
         }
@@ -66,6 +72,7 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
 
 @implementation MaterialRenderer
 @synthesize selection=_selection;
+@synthesize lightingEnabled=_lightingEnabled;
 - (void)setSelection: (NSUInteger)selection {
     if (selection>1) [NSException raise:NSInvalidArgumentException format:@"Unknown material index"];
     _selection=selection;
@@ -82,9 +89,15 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     pipeline.vertexFunction=vertex;pipeline.fragmentFunction=fragment;
     pipeline.colorAttachments[0].pixelFormat=MTLPixelFormatBGRA8Unorm;pipeline.depthAttachmentPixelFormat=MTLPixelFormatDepth32Float;
     _pipeline=[device newRenderPipelineStateWithDescriptor:pipeline error:&error];requireMaterial(_pipeline && !error,"textured depth pipeline");
+    id<MTLFunction> embedded=[library newFunctionWithName:@"material_embedded_fragment"];
+    pipeline.fragmentFunction=embedded;
+    _embeddedPipeline=[device newRenderPipelineStateWithDescriptor:pipeline error:&error];
+    requireMaterial(_embeddedPipeline && !error,"embedded sampler pipeline");[embedded release];
+    _operations=[[TextureOperations alloc] initWithDevice:device queue:queue];
     auto mesh=Cube::vertices();std::array<Vertex,24> vertices {};
     const float uv[4][2]={{0,1},{1,1},{1,0},{0,0}};
-    for (unsigned i=0;i<24;++i) vertices[i]={mesh[i].position,{uv[i%4][0],uv[i%4][1],shades[i/4],0}};
+    const Cube::Float4 normals[]={{0,0,1,0},{0,0,-1,0},{1,0,0,0},{-1,0,0,0},{0,1,0,0},{0,-1,0,0}};
+    for (unsigned i=0;i<24;++i) vertices[i]={mesh[i].position,{uv[i%4][0],uv[i%4][1],shades[i/4],0},normals[i/4]};
     const Vertex quad[]={{{-1,-1,0,1},{0,1,1,0}},{{1,-1,0,1},{1,1,1,0}},{{1,1,0,1},{1,0,1,0}},{{-1,1,0,1},{0,0,1,0}}};
     auto indices=Cube::indices();
     _vertices=[device newBufferWithBytes:vertices.data() length:sizeof(vertices) options:MTLResourceStorageModeShared];
@@ -94,9 +107,9 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     for (unsigned i=0;i<2;++i) {
         auto pixels=Materials::texture(i);
         MTLTextureDescriptor* desc=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:Materials::size height:Materials::size mipmapped:NO];
-        desc.storageMode=MTLStorageModeShared;desc.usage=MTLTextureUsageShaderRead;
+        desc.storageMode=MTLStorageModeShared;desc.usage=MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite;
         _textures[i]=[device newTextureWithDescriptor:desc];requireMaterial(_textures[i]!=nil,"material texture");
-        [_textures[i] replaceRegion:MTLRegionMake2D(0,0,Materials::size,Materials::size) mipmapLevel:0 withBytes:pixels.data() bytesPerRow:Materials::size*4];
+        [_operations uploadRGBA:pixels.data() width:Materials::size height:Materials::size toTexture:_textures[i]];
     }
     MTLSamplerDescriptor* sampling=[MTLSamplerDescriptor new];
     sampling.normalizedCoordinates=YES;sampling.sAddressMode=MTLSamplerAddressModeRepeat;sampling.tAddressMode=MTLSamplerAddressModeRepeat;
@@ -109,6 +122,7 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     depth.depthCompareFunction=MTLCompareFunctionAlways;depth.depthWriteEnabled=NO;_flatState=[device newDepthStencilStateWithDescriptor:depth];
     requireMaterial(_depthState && _flatState,"material depth states");
     [depth release];[sampling release];[pipeline release];[vertex release];[fragment release];[library release];
+    _lightingEnabled=YES;_embeddedSamplingEnabled=YES;
     return self;
 }
 - (id<MTLRenderCommandEncoder>)begin: (id<MTLCommandBuffer>)command target: (id<MTLTexture>)target {
@@ -124,9 +138,9 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     pass.depthAttachment.texture=_depth;pass.depthAttachment.loadAction=MTLLoadActionClear;
     pass.depthAttachment.storeAction=MTLStoreActionDontCare;pass.depthAttachment.clearDepth=1;
     id<MTLRenderCommandEncoder> encoder=[command renderCommandEncoderWithDescriptor:pass];requireMaterial(encoder!=nil,"material encoder");
-    [encoder setRenderPipelineState:_pipeline];[encoder setCullMode:MTLCullModeNone];
-    const Cube::Float4 tint {1,1,1,1};
-    [encoder setFragmentBytes:&tint length:sizeof(tint) atIndex:6];
+    [encoder setRenderPipelineState:_embeddedSamplingEnabled?_embeddedPipeline:_pipeline];[encoder setCullMode:MTLCullModeNone];
+    auto light=Materials::light(0,false);
+    [encoder setFragmentBytes:&light length:sizeof(light) atIndex:6];
     return encoder;
 }
 - (void)quad: (id<MTLRenderCommandEncoder>)encoder width: (NSUInteger)width height: (NSUInteger)height {
@@ -135,9 +149,11 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:7];
     [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:6 indexType:MTLIndexTypeUInt16 indexBuffer:_indices indexBufferOffset:0];
 }
-- (void)encode: (id<MTLCommandBuffer>)command texture: (id<MTLTexture>)target time: (float)time {
+- (void)encode: (id<MTLCommandBuffer>)command texture: (id<MTLTexture>)target time: (float)time lightTime:(float)lightTime {
     auto area=layout(target.width,target.height);
     id<MTLRenderCommandEncoder> encoder=[self begin:command target:target];
+    auto light=Materials::light(lightTime,_lightingEnabled);
+    [encoder setFragmentBytes:&light length:sizeof(light) atIndex:6];
     [encoder setFragmentTexture:_textures[_selection] atIndex:2];[encoder setFragmentSamplerState:_linear atIndex:4];
     [encoder setViewport:MTLViewport{double(area.left),double(area.top),double(area.side),double(area.side),0,1}];
     [self quad:encoder width:area.side height:area.side];
@@ -148,21 +164,26 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
     [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:36 indexType:MTLIndexTypeUInt16 indexBuffer:_indices indexBufferOffset:0];
     [encoder endEncoding];
 }
+- (void)encode: (id<MTLCommandBuffer>)command texture:(id<MTLTexture>)target time:(float)time {
+    [self encode:command texture:target time:time lightTime:time];
+}
 - (void)verifyOffscreen: (const char*)path {
+    [_operations verify];self.lightingEnabled=NO;
     // Public-API sampling fixture: asymmetrical corners reveal flips and wrong slots.
     const unsigned char corners[]={255,0,0,255,0,255,0,255,0,0,255,255,255,255,0,255};
     MTLTextureDescriptor* small=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:2 height:2 mipmapped:NO];
     small.storageMode=MTLStorageModeShared;small.usage=MTLTextureUsageShaderRead;
     id<MTLTexture> source=[_device newTextureWithDescriptor:small];requireMaterial(source!=nil,"2x2 source");
     [source replaceRegion:MTLRegionMake2D(0,0,2,2) mipmapLevel:0 withBytes:corners bytesPerRow:8];
-    for (unsigned mode=0;mode<2;++mode) {
+    for (unsigned mode=0;mode<3;++mode) {
+        _embeddedSamplingEnabled=mode==2;
         unsigned side=mode?1:16;
         MTLTextureDescriptor* desc=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:side height:side mipmapped:NO];
         desc.storageMode=MTLStorageModeShared;desc.usage=MTLTextureUsageRenderTarget;
         id<MTLTexture> target=[_device newTextureWithDescriptor:desc];requireMaterial(target!=nil,"sampling target");
         id<MTLCommandBuffer> command=[_queue commandBuffer];id<MTLRenderCommandEncoder> encoder=[self begin:command target:target];
         [encoder setViewport:MTLViewport{0,0,double(side),double(side),0,1}];
-        [encoder setFragmentTexture:source atIndex:2];[encoder setFragmentSamplerState:mode?_linear:_nearest atIndex:4];
+        [encoder setFragmentTexture:source atIndex:2];[encoder setFragmentSamplerState:mode==1?_linear:_nearest atIndex:4];
         [self quad:encoder width:side height:side];[encoder endEncoding];[command commit];[command waitUntilCompleted];
         std::vector<unsigned char> pixels(side*side*4);
         [target getBytes:pixels.data() bytesPerRow:side*4 fromRegion:MTLRegionMake2D(0,0,side,side) mipmapLevel:0];
@@ -171,12 +192,18 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
             const int mean[]={128,128,64,255};
             for (unsigned c=0;c<4;++c) {
                 unsigned rgba=c==0?2:c==2?0:c;
-                requireMaterial(std::abs(int(pixels[(y*side+x)*4+c])-(mode?mean[rgba]:corners[corner*4+rgba]))<=1,"nearest orientation / linear center at texture 2 sampler 4");
+                int expected=mode?mean[rgba]:corners[corner*4+rgba];
+                int actual=pixels[(y*side+x)*4+c];
+                if (std::abs(actual-expected)>1) {
+                    std::fprintf(stderr,"Sampling test mode=%u pixel=(%u,%u) BGRA channel=%u expected=%d actual=%d\n",mode,x,y,c,expected,actual);
+                    requireMaterial(false,"nearest orientation / linear center at texture 2 sampler 4");
+                }
             }
         }
         [target release];
     }
-    [source release];std::printf("PASS texture upload, UV orientation, nearest and linear filtering at texture 2 / sampler 4\n");
+    _embeddedSamplingEnabled=YES;
+    [source release];std::printf("PASS texture upload, UV orientation, explicit nearest/linear and embedded linear sampling\n");
     MTLTextureDescriptor* desc=[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:800 height:500 mipmapped:NO];
     desc.storageMode=MTLStorageModeShared;desc.usage=MTLTextureUsageRenderTarget;
     id<MTLTexture> target=[_device newTextureWithDescriptor:desc];requireMaterial(target!=nil,"material scene target");
@@ -195,11 +222,40 @@ size_t validate(const std::vector<unsigned char>& bgra,unsigned width,unsigned h
         requireMaterial(validate(pixels,800,500,time,1-_selection)>1000,"negative control rejects the other material");
 
     }
+    self.lightingEnabled=YES;
+    std::vector<unsigned char> first;
+    for (unsigned frame=0;frame<4;++frame) {
+        self.selection=frame%2;float lightTime=frame<2?0:2;
+        id<MTLCommandBuffer> command=[_queue commandBuffer];
+        [self encode:command texture:target time:.35f lightTime:lightTime];
+        [command commit];[command waitUntilCompleted];requireMaterial(command.error==nil,"lighting completion");
+        std::vector<unsigned char> pixels(800*500*4);
+        [target getBytes:pixels.data() bytesPerRow:800*4 fromRegion:MTLRegionMake2D(0,0,800,500) mipmapLevel:0];
+        requireMaterial(validate(pixels,800,500,.35f,_selection,true,lightTime)==0,"dynamic point light matches independent per-pixel CPU reference");
+        requireMaterial(validate(pixels,800,500,.35f,_selection,true,lightTime+2)>1000,"negative control detects wrong light position");
+        if (frame==0) first=pixels;
+        if (frame==2) {
+            auto area=layout(800,500);size_t moving=0;
+            for (unsigned y=0;y<500;++y) for (unsigned x=0;x<800;++x) {
+                size_t i=(size_t(y)*800+x)*4;
+                bool same=std::equal(pixels.begin()+i,pixels.begin()+i+4,first.begin()+i);
+                if (x<area.right) requireMaterial(same,"albedo preview stays unchanged when only light moves");
+                else moving+=!same;
+            }
+            requireMaterial(moving>10000,"moving light changes a fixed cube pose");
+            std::printf("PASS moving light at fixed geometry: changed_pixels=%zu, albedo unchanged\n",moving);
+        }
+        FILE* image=std::fopen((stem+"-light-"+std::to_string(frame)+".ppm").c_str(),"wb");requireMaterial(image!=nullptr,"lighting image");
+        std::fprintf(image,"P6\n800 500\n255\n");
+        for (size_t i=0;i<800*500;++i) {unsigned char rgb[]={pixels[i*4+2],pixels[i*4+1],pixels[i*4]};requireMaterial(std::fwrite(rgb,1,3,image)==3,"lighting image write");}
+        requireMaterial(std::fclose(image)==0,"lighting image close");
+    }
     [target release];self.selection=0;std::printf("PASS concrete/wood switching, flat preview and cube UV at two rotation times\n");
 }
 - (void)dealloc {
     for (id<MTLTexture> texture:_textures) [texture release];
     [_depth release];[_linear release];[_nearest release];[_depthState release];[_flatState release];
+    [_operations release];[_embeddedPipeline release];
     [_vertices release];[_quad release];[_indices release];[_pipeline release];[_queue release];[_device release];
     [super dealloc];
 }

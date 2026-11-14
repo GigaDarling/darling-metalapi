@@ -1,0 +1,47 @@
+diff --git a/private-include/indium/command-encoder.private.hpp b/private-include/indium/command-encoder.private.hpp
+index 15a5cc1..eeda0b3 100644
+--- a/private-include/indium/command-encoder.private.hpp
++++ b/private-include/indium/command-encoder.private.hpp
+@@ -258,7 +258,8 @@ namespace Indium {
+ 					}
+ 
+ 					auto& info = imageInfos.emplace_front();
+-					info.imageView = privateTexture ? privateTexture->sampledImageView() : VK_NULL_HANDLE;
++					info.imageView = privateTexture ? (bindingInfo.textureAccessType == TextureAccessType::Sample
++						? privateTexture->sampledImageView() : privateTexture->imageView()) : VK_NULL_HANDLE;
+ 					info.imageLayout = privateTexture ? privateTexture->imageLayout() : VK_IMAGE_LAYOUT_GENERAL;
+ 
+ 					auto& descSet = writeDescSet.emplace_back();
+diff --git a/src/indium/render-command-encoder.cpp b/src/indium/render-command-encoder.cpp
+index 61fc1fd..45caa60 100644
+--- a/src/indium/render-command-encoder.cpp
++++ b/src/indium/render-command-encoder.cpp
+@@ -347,7 +347,9 @@ void Indium::PrivateRenderCommandEncoder::setViewports(const Viewport* viewports
+ 		//       so we use a Vulkan 1.1 feature here and just flip the Y-axis of the viewport
+ 		//       (with a corresponding change in the origin).
+ 		vkViewport.x = viewport.originX;
+-		vkViewport.y = viewport.height - viewport.originY;
++		// A negative Vulkan height moves the origin to the lower edge.
++		// https://docs.vulkan.org/refpages/latest/refpages/source/VkViewport.html
++		vkViewport.y = viewport.originY + viewport.height;
+ 		vkViewport.width = viewport.width;
+ 		vkViewport.height = -viewport.height;
+ 		// the documentation for setViewport and setViewports states that znear and zfar must be between
+diff --git a/src/indium/texture.cpp b/src/indium/texture.cpp
+index 53ad218..7490278 100644
+--- a/src/indium/texture.cpp
++++ b/src/indium/texture.cpp
+@@ -444,6 +444,13 @@ Indium::ConcreteTexture::ConcreteTexture(std::shared_ptr<PrivateDevice> device,
+ 	} else if (unknownUsage && _descriptor.sampleCount == 1 && (features & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)) {
+ 		info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+ 	}
++	// Metal ShaderRead covers both sampling and texture.read(). The latter
++	// needs a storage-capable image for the compiler's image-load operations.
++	if (_descriptor.sampleCount == 1 && (features & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) &&
++		(descriptor.usage & TextureUsage::ShaderRead) != TextureUsage::Unknown) {
++		info.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
++	}
++
+ 	if ((descriptor.usage & TextureUsage::RenderTarget) != TextureUsage::Unknown || unknownUsage) {
+ 		if (isColor && (!unknownUsage || (features & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT))) {
+ 			info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;

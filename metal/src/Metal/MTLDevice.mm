@@ -107,6 +107,7 @@ static void applyPlatformIdentity(MTLDeviceInternal* defaultDevice) {
 
 static void ensureDevices(void) {
 	dispatch_once(&devicesInitToken, ^{
+		ensureMetalInitialized();
 		devices = [NSMutableArray new];
 
 		// Indium lists the default device first. Wrapping a device is cheap: Indium creates its
@@ -356,6 +357,18 @@ void MTLRemoveDeviceObserver(id<NSObject> observer) {
 - (BOOL)supportsFeatureSet: (MTLFeatureSet)featureSet
 {
 	return MTLDeviceInfo::supportsFeatureSet(featureSet);
+}
+
+- (BOOL)supportsShaderBarycentricCoordinates
+{
+	// See the note in MTLDevice.h: Vulkan has no barycentric decoration to lower
+	// onto, so this says what the backend implements.
+	return NO;
+}
+
+- (MTLArgumentBuffersTier)argumentBuffersSupport
+{
+	return MTLArgumentBuffersTier1;
 }
 
 - (BOOL)supportsTextureSampleCount: (NSUInteger)sampleCount
