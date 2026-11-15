@@ -63,3 +63,26 @@ redistributed unchanged with attribution; the independently authored app shell,
 format packager and tests are GPL-3.0-or-later. The format loader in Metal is MPL-2.0.
 No Apple AIR/metallib implementation, restricted source or binary internals were
 used. This is a sample source build through Darling's own offline shader format.
+
+## DOOM application in v0.5.0
+
+DoomGeneric is an external build dependency at
+`e257a09527062bfb986b6e5e0780839b6cbd5b71`, from
+https://github.com/ozkl/doomgeneric, GPL-2.0-or-later per its source notices.
+The original notices and license are retained in the separate engine checkout;
+corresponding engine sources accompany the binary application under
+`source/doomgeneric`. Frontend, mixer and build integration are independently
+written GPL-3.0-or-later code under `demo/doom` (`source/demo/doom` in the overlay).
+The generated dispatcher removes only an unused SDL_mixer include, to select
+our AudioQueue sound module. No Doom engine implementation is claimed as ours.
+
+The shareware IWAD is separately copyrighted game data, not GPL source. It is
+not shipped in this source repository or binary overlay. The optional downloader
+fetches and verifies the original shareware distribution from an id FTP mirror,
+retaining the archive and its original accompanying notices locally. No retail
+WAD or proprietary Doom executable is needed or redistributed.
+
+Provenance: publicly documented Metal/MetalKit/AppKit/AudioQueue interfaces,
+licensed DoomGeneric module contracts and the DMX PCM lump format. No Apple
+binary analysis or restricted material was used. The DOOM screenshot records
+actual gameplay through Darling Metal on an Intel GPU. Music is not supported.

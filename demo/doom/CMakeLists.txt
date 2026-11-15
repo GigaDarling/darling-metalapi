@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+set(DOOMGENERIC_SOURCE_DIR "${CMAKE_SOURCE_DIR}/build/metal-baseline/vendor/doomgeneric" CACHE PATH "Pinned external DoomGeneric checkout")
+if (EXISTS "${DOOMGENERIC_SOURCE_DIR}/doomgeneric/doomgeneric.c")
+    set(DOOM_ENGINE "${DOOMGENERIC_SOURCE_DIR}/doomgeneric")
+    file(READ "${DOOM_ENGINE}/Makefile" doom_makefile)
+    string(REGEX MATCH "SRC_DOOM = ([^\n]+)" unused "${doom_makefile}")
+    string(REPLACE ".o" ".c" doom_sources "${CMAKE_MATCH_1}")
+    separate_arguments(doom_sources UNIX_COMMAND "${doom_sources}")
+    list(REMOVE_ITEM doom_sources doomgeneric_xlib.c i_sound.c)
+    list(TRANSFORM doom_sources PREPEND "${DOOM_ENGINE}/")
+    # The engine's sound dispatcher does not use SDL; only its unused include
+    # needs removing when selecting our AudioQueue module instead of SDL_mixer.
+    file(READ "${DOOM_ENGINE}/i_sound.c" sound_dispatcher)
+    string(REPLACE "#include <SDL_mixer.h>" "" sound_dispatcher "${sound_dispatcher}")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/i_sound.c" "${sound_dispatcher}")
+    add_darling_executable(doom-metal ${doom_sources} "${CMAKE_CURRENT_BINARY_DIR}/i_sound.c" main.mm sound.mm)
+    target_include_directories(doom-metal PRIVATE "${DOOM_ENGINE}")
+    target_compile_definitions(doom-metal PRIVATE NORMALUNIX LINUX FEATURE_SOUND DOOMGENERIC_RESX=320 DOOMGENERIC_RESY=200)
+    target_compile_options(doom-metal PRIVATE -fblocks)
+    set_source_files_properties(main.mm sound.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    set_target_properties(doom-metal PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doom-metal.app/Contents/MacOS")
+    configure_file(Info.plist "${CMAKE_CURRENT_BINARY_DIR}/doom-metal.app/Contents/Info.plist" COPYONLY)
+    target_link_libraries(doom-metal Metal MetalKit AppKit QuartzCore Foundation AudioToolbox CoreAudio cxx)
+endif()

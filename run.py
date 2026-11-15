@@ -12,12 +12,30 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
                                      "cube-offscreen", "cube-window", "cube-window-test",
                                      "textures-offscreen", "textures-window", "textures-window-test",
-                                     "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
+                                     "doom-window", "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
 parser.add_argument("--darling-prefix", required=True, type=Path)
 parser.add_argument("--demo", type=Path, default=None)
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
 parser.add_argument("--output", type=Path)
+parser.add_argument("--wad", type=Path, help="external DOOM IWAD for doom-window")
+parser.add_argument("--state-dir", type=Path, help="persistent Doom configuration/save directory")
+parser.add_argument("--engine-args", nargs=argparse.REMAINDER, default=[], help="extra Doom options; must be last")
 args = parser.parse_args()
+
+if args.mode == "doom-window":
+    if not args.wad:
+        parser.error("doom-window requires --wad /path/to/doom1.wad")
+    helper = ROOT / "demo/doom/run.py"
+    if not helper.is_file():
+        helper = ROOT / "source/demo/doom/run.py"
+    app = args.demo or ROOT / "bin/doom-metal.app/Contents/MacOS/doom-metal"
+    command = [os.sys.executable, str(helper), "--darling-prefix", str(args.darling_prefix),
+               "--app", str(app), "--wad", str(args.wad)]
+    if args.icd: command += ["--icd", str(args.icd)]
+    if args.state_dir: command += ["--state-dir", str(args.state_dir)]
+    if args.engine_args: command += ["--", *args.engine_args]
+    raise SystemExit(subprocess.call(command))
+
 launcher = args.darling_prefix.resolve() / "bin/darling"
 demo = (args.demo or ROOT / ("bin/apple-metal-sample.app/Contents/MacOS/apple-metal-sample"
                               if args.mode.startswith("apple-") else "bin/metal-baseline-demo")).resolve()

@@ -20,6 +20,9 @@ compiler = (darling / "build/metal-baseline/vendor/mslc" if manifest["mslc"].get
             else ROOT / "deps/mslc")
 if args.jobs < 1 or not (darling / "tools/metal-baseline/render-demo.mm").is_file():
     parser.error("use positive --jobs and run prepare.py on this checkout first")
+engine = darling / "build/metal-baseline/vendor/doomgeneric"
+subprocess.run([os.sys.executable, str(ROOT / "demo/doom/fetch-engine.py"),
+                "--destination", str(engine)], check=True)
 # Xcode's offline shader build is replaced by the pinned native MIT compiler.
 host_build = darling / "build/metal-baseline/mslc-host"
 subprocess.run(["cmake", "-S", str(compiler), "-B", str(host_build),
@@ -31,7 +34,7 @@ subprocess.run(["cmake", "-S", str(darling), "-B", str(build), "-G", "Ninja",
     "-DENABLE_METAL=ON", "-DENABLE_TESTS=OFF", "-DDARLING_NO_CCACHE=ON",
     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5", "-DMSLC_SOURCE_DIR=" + str(compiler),
     "-DMSLC_EXECUTABLE=" + str(host_build / "mslc"),
-    "-DDARLING_BUILD_METAL_DEMO=ON"], check=True)
+    "-DDARLING_BUILD_METAL_DEMO=ON", "-DDOOMGENERIC_SOURCE_DIR=" + str(engine)], check=True)
 subprocess.run(["cmake", "--build", str(build), "--parallel", str(args.jobs)], check=True)
 environment = dict(os.environ, DESTDIR="/")
 subprocess.run(["cmake", "--install", str(build)], env=environment, check=True)

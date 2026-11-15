@@ -10,6 +10,33 @@ Indium и Vulkan. Компиляция MSL из исходного текста 
 **[Скриншот](docs/media/lighting-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/GigaDarling/darling-metalapi/releases)**
 
+## Новое в v0.5.0: DOOM с клавиатурой и звуком
+
+**[Скачать v0.5.0](https://github.com/GigaDarling/darling-metalapi/releases/tag/v0.5.0)**
+
+Настоящий движок DoomGeneric собран как Mach-O приложение Darling. Его программный
+кадр выводится через Metal → Indium → Vulkan; клавиатура работает через AppKit,
+звуковые эффекты — через AudioQueue → CoreAudio → PulseAudio.
+
+![DOOM shareware в окне Darling Metal](docs/media/doom-window.png)
+
+```sh
+python3 demo/doom/get-shareware.py --output build/doom-data
+python3 run.py doom-window \
+  --darling-prefix work/darling/build/metal-baseline/prefix \
+  --demo work/darling/build/metal-baseline/darling/src/tools/doom/doom-metal.app/Contents/MacOS/doom-metal \
+  --wad build/doom-data/doom1.wad \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+В бинарном комплекте загрузчик находится в `source/demo/doom/get-shareware.py`,
+а `--demo` можно опустить. **W/S** — вперёд/назад, **A/D** —
+стрейф, **←/→** — поворот, **Ctrl/F** — огонь, **Space/E** — двери, **Esc** — меню.
+Сохранения лежат отдельно от временного DPREFIX, в `~/.local/share/darling-metalapi/doom`.
+Управление и звуковые эффекты подтверждены пользователем. Музыка MIDI/OPL пока
+не реализована. WAD скачивается отдельно и не включён в репозиторий или архив.
+[Устройство порта, сборка, проверки и лицензии](demo/doom/README.md).
+
 ## Новое в v0.4.0: официальный sample Apple и AppKit
 
 Запускается [Synchronizing CPU and GPU Work](https://developer.apple.com/documentation/metal/synchronizing-cpu-and-gpu-work):

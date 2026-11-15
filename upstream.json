@@ -24,5 +24,11 @@
   "darlingserver": {
     "url": "https://github.com/darlinghq/darlingserver.git",
     "revision": "7c1e6d2d2b2e14774568127bed574dc8cc91925a"
+  },
+  "doomgeneric": {
+    "url": "https://github.com/ozkl/doomgeneric.git",
+    "revision": "e257a09527062bfb986b6e5e0780839b6cbd5b71",
+    "license": "GPL-2.0-or-later",
+    "integration": "External engine with independently authored AppKit, Metal and AudioQueue modules; generated dispatcher omits unused SDL_mixer header."
   }
 }

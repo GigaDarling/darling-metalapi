@@ -153,3 +153,33 @@ this recheck; test frame counts are not a performance guarantee.
 The user then tested the actual packaged v0.4.0 executable on the desktop:
 About opens a native dialog with OK, and View > One frame while paused advances
 the visible counter by exactly one. Both were confirmed before publication.
+
+
+## v0.5.0 DOOM
+
+- DoomGeneric pinned to `e257a09527062bfb986b6e5e0780839b6cbd5b71`; clean checkout
+  verified before build. Compiled into the same Mach-O app as the AppKit/Metal
+  frontend and AudioQueue effect mixer.
+- Original shareware 1.9 archive and extracted WAD SHA-256 verified; downloader
+  tested in a new directory. No WAD is included in the distributable.
+- Intel desktop frame inspected: E1M1 world, weapon, HUD and pickup message.
+  The user confirmed movement, shooting and sound effects in the actual app.
+- ASan/UBSan mixer tests pass: bounds, wrong format, truncation, stereo,
+  saturation, sample-rate conversion and channel completion.
+- ASan/UBSan input tests pass: repeat, aliased controls, releases after a menu
+  transition, focus loss and invalid sources. LeakSanitizer is disabled because
+  the execution sandbox does not support its process inspection.
+- Initial launch implementation was moved onto the NSApplication run loop, with
+  presentation deferred until initialization completes. No framework changes
+  were needed. Xvfb/software presentation was not a valid image oracle here;
+  Intel desktop output was used for visual validation.
+- Music/MIDI/OPL and mouse-look are not implemented. This is software-rendered
+  Doom with Metal presentation, not a Metal world renderer.
+
+Final package smoke check: the packaged executable was launched through the
+focused project's `run.py doom-window`, with an external IWAD and persistent
+state directory. Intel E1M1 framebuffer and AudioQueue startup were verified.
+The tools integration patch applied to the pinned pristine CMake file and
+produced the exact local integration. Archive contents were checked for the
+Doom executable, matching frontend sources, corresponding engine source and
+license; no WAD or stale running executable is present.
