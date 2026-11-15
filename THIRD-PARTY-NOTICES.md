@@ -47,3 +47,19 @@ public Metal usage flags, the Khronos Vulkan descriptor/storage-image contract
 licensed mslc/Indium interfaces. No third-party implementation was copied into
 the new compiler feature. New upstream Metal files retain their MPL notices;
 upstream guest tests are not redistributed in this snapshot.
+
+## Official Apple sample in v0.4.0
+
+`demo/apple-sync/upstream/` contains the MIT-licensed renderer, shader, shared
+header, README and documentation images from Apple's official Synchronizing
+CPU and GPU Work sample, downloaded from:
+https://docs-assets.developer.apple.com/published/a2ec04f3244c/SynchronizingCPUAndGPUWork.zip
+
+SHA-256: `33a12c250263f261ce3816f2d0ff0c410eb0d1b90a3156fde7df3b0aefcdc205`.
+Copyright 2026 Apple Inc. Full license: `demo/apple-sync/upstream/LICENSE.txt`.
+Unlike restricted Apple platform implementation sources, this sample expressly
+permits use, modification and distribution under the included MIT terms. It is
+redistributed unchanged with attribution; the independently authored app shell,
+format packager and tests are GPL-3.0-or-later. The format loader in Metal is MPL-2.0.
+No Apple AIR/metallib implementation, restricted source or binary internals were
+used. This is a sample source build through Darling's own offline shader format.

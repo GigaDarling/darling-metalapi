@@ -39,7 +39,7 @@ def main():
     if not compiler.is_file():
         parser.error("initialize this repository's submodules first: git submodule update --init --recursive")
     patches = [(darling, "darling-tools.patch"),
-               (repositories["cocotron"], "cocotron-layer-init.patch"),
+               (repositories["cocotron"], "cocotron-appkit.patch"),
                (repositories["darlingserver"], "darlingserver-openssl4.patch"),
                (repositories["indium"], "indium-compatibility.patch")]
     # Check every patch before making the first change.

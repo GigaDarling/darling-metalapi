@@ -20,10 +20,17 @@ compiler = (darling / "build/metal-baseline/vendor/mslc" if manifest["mslc"].get
             else ROOT / "deps/mslc")
 if args.jobs < 1 or not (darling / "tools/metal-baseline/render-demo.mm").is_file():
     parser.error("use positive --jobs and run prepare.py on this checkout first")
+# Xcode's offline shader build is replaced by the pinned native MIT compiler.
+host_build = darling / "build/metal-baseline/mslc-host"
+subprocess.run(["cmake", "-S", str(compiler), "-B", str(host_build),
+                "-DCMAKE_BUILD_TYPE=Release"], check=True)
+subprocess.run(["cmake", "--build", str(host_build), "--target", "mslc-cli",
+                "--parallel", str(args.jobs)], check=True)
 subprocess.run(["cmake", "-S", str(darling), "-B", str(build), "-G", "Ninja",
     "-DCMAKE_INSTALL_PREFIX=" + str(prefix), "-DCOMPONENTS=gui", "-DTARGET_i386=OFF",
     "-DENABLE_METAL=ON", "-DENABLE_TESTS=OFF", "-DDARLING_NO_CCACHE=ON",
     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5", "-DMSLC_SOURCE_DIR=" + str(compiler),
+    "-DMSLC_EXECUTABLE=" + str(host_build / "mslc"),
     "-DDARLING_BUILD_METAL_DEMO=ON"], check=True)
 subprocess.run(["cmake", "--build", str(build), "--parallel", str(args.jobs)], check=True)
 environment = dict(os.environ, DESTDIR="/")

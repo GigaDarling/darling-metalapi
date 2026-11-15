@@ -350,3 +350,12 @@ the unmodified Indium corpus remains 7/7 valid before and after. The backend
 uses storage image views for load/store, and adds storage usage for supported
 single-sample ShaderRead textures. Public contract source:
 https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf.
+
+
+## v0.4.0: official Apple sample
+
+See [apple-sync/README.md](apple-sync/README.md) for provenance, building and
+`apple-window`, `apple-window-test`, `apple-library-test` commands.
+The renderer/shader files match the official MIT archive; the AppKit bootstrap,
+Darling SPIR-V packaging and analytic verification are independently authored.
+The binary overlay includes the official sample app and the AppKit/X11 input fixes.

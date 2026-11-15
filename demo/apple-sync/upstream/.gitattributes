@@ -1,0 +1,2 @@
+# Keep official archive files byte-for-byte, including their original whitespace.
+* -whitespace

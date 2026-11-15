@@ -1,4 +1,4 @@
-# v0.3.0 validation — 2026-11-14
+# v0.4.0 validation — 2026-11-15
 
 The release is an experimental Linux x86_64 binary overlay for the pinned
 Darling GUI runtime. The full runtime and host dependencies are not included.
@@ -17,7 +17,7 @@ Darling GUI runtime. The full runtime and host dependencies are not included.
   output at Metal index 5.
 - Window test: 900x560 → 900x600 → 640x420, 180 submitted frames over 3.10 s,
   clean close. This short run is not a performance guarantee.
-- Archive extraction, all five overlay-file replacements and original-file
+- Archive extraction, all six overlay-file replacements and original-file
   backups: passed in a disposable installation fixture.
 - Source integration: prepare.py --check and prepare.py passed on clean
   checkouts of every pinned target; patched files and demo matched the
@@ -96,3 +96,60 @@ fixture, with original files preserved. prepare.py --check leaves the target
 unchanged; actual clean integration reproduces the Metal, Indium, demo and
 patched compiler sources byte-for-byte. The 6-second v0.3.0 window recording
 is 1050x758, 90 frames at 15 FPS; the README GIF is derived from that capture.
+
+## Added in v0.4.0
+
+- Official MIT Apple archive downloaded from docs-assets.developer.apple.com;
+  all six Renderer files match the archived originals byte-for-byte. Hash and
+  license are retained. Only generated host module-import syntax changes.
+- Initial runtime fails on the sample's default library with "Invalid Metal
+  library magic". The new general Darling SPIR-V container loader fixes the
+  library/bundle path without rewriting Apple's renderer or shader logic.
+- Original shader compiles unchanged and passes spirv-val.
+- New library tests: URL, default/main/explicit bundle, contiguous and segmented
+  dispatch data, function names/types, missing function; 36 invalid cases each
+  tested both with NSError output and with nil error output. All pass on Intel.
+- Official sample: 180 frames, real view resize 1000x600 → 800x500 → 640x420,
+  completion semaphore continues across three reused buffers; clean close.
+- Four independently checked images: 143396 + 143328 + 93707 + 62261 = 442692
+  sampled pixels, zero mismatches, 35522 interior samples. Wrong phase rejected
+  with 20519, 20478, 19803 and 15169 mismatches respectively.
+- Drawable readback uses blit-to-buffer with padded row strides. A preliminary
+  test attempted unsupported direct drawable getBytes; that test-harness error
+  was corrected, and timer exceptions now fail the test explicitly.
+- Portable loader syntax-checks with runtime mslc compilation disabled.
+- These results cover a source-built, MIT example and Darling's own offline
+  format; arbitrary Apple AIR libraries and complete Xcode app launch are not claimed.
+
+
+### Native AppKit controls in v0.4.0
+
+- Added real NSMenu/NSMenuItem, NSButton, editable NSTextField and mouse/key
+  handling in the app bootstrap; original Apple renderer/shader files unchanged.
+- A border-entry menu test failed before the hit-cache fix and passes after it.
+- The real desktop click exposed normal focus transfer between this client's
+  own windows; the initial synthetic test did not cover it. A private Xvfb test
+  now transfers focus from a native child to the popup and checks the action.
+- Five private-X11 cases pass, including NSAlert visibility/modal ownership and
+  its OK result. Temporary grab focus events do not deactivate the application.
+- The user confirmed the actual About dialog opens with a real click, and
+  reported one-frame advance, editing-menu and context-menu checks as working.
+- AppKit and its separate X11 backend plugin are both included in the local
+  overlay (six files).
+
+
+### Release recheck — 2026-11-15
+
+The six prepared overlay binaries match the installed test runtime by SHA-256.
+The packaged app passes apple-library-test and apple-window-test on Intel Iris Xe
+under a private Xvfb; the previous textures-offscreen regression also passes.
+All five private-X11 menu/focus/modal cases pass using the packaged app.
+Clean pinned integration passes prepare.py --check without changing the target,
+then actual preparation reproduces the released Metal and demo sources.
+The official Apple ZIP hash and all six original Renderer files were rechecked.
+Python syntax and final diff whitespace checks pass. The captured media precede
+this recheck; test frame counts are not a performance guarantee.
+
+The user then tested the actual packaged v0.4.0 executable on the desktop:
+About opens a native dialog with OK, and View > One frame while paused advances
+the visible counter by exactly one. Both were confirmed before publication.

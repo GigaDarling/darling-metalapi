@@ -11,14 +11,16 @@ ROOT = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
                                      "cube-offscreen", "cube-window", "cube-window-test",
-                                     "textures-offscreen", "textures-window", "textures-window-test"])
+                                     "textures-offscreen", "textures-window", "textures-window-test",
+                                     "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
 parser.add_argument("--darling-prefix", required=True, type=Path)
-parser.add_argument("--demo", type=Path, default=ROOT / "bin/metal-baseline-demo")
+parser.add_argument("--demo", type=Path, default=None)
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
 parser.add_argument("--output", type=Path)
 args = parser.parse_args()
 launcher = args.darling_prefix.resolve() / "bin/darling"
-demo = args.demo.resolve()
+demo = (args.demo or ROOT / ("bin/apple-metal-sample.app/Contents/MacOS/apple-metal-sample"
+                              if args.mode.startswith("apple-") else "bin/metal-baseline-demo")).resolve()
 if not launcher.is_file() or not demo.is_file():
     parser.error("missing Darling launcher or demo; see README.md")
 environment = dict(os.environ, DARLING_NOOVERLAYFS="1")
@@ -30,7 +32,8 @@ with tempfile.TemporaryDirectory(prefix="metalapi-") as temporary:
     environment["DPREFIX"] = temporary
     command = ["unshare", "--user", "--map-auto", "--map-root-user", "--mount", "--pid",
                "--fork", "--mount-proc", "setpriv", "--clear-groups", str(launcher),
-               "exec", str(demo), "--" + args.mode]
+               "exec", str(demo)]
+    command += (["--menu-alert-test"] if args.mode=="apple-menu-alert-test" else ["--menu-raw-test"] if args.mode=="apple-menu-raw-test" else ["--menu-test"] if args.mode=="apple-menu-test" else ["--test"] if args.mode=="apple-window-test" else ["--library-test"] if args.mode=="apple-library-test" else [] if args.mode=="apple-window" else ["--"+args.mode])
     if args.mode.endswith("offscreen"):
         name = "textures.ppm" if args.mode.startswith("textures-") else "cube.ppm" if args.mode.startswith("cube-") else "shapes.ppm" if args.mode.startswith("shapes-") else "triangle.ppm"
         output = (args.output or Path.cwd() / "results" / name).resolve()

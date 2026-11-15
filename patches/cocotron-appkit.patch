@@ -1,0 +1,179 @@
+diff --git a/AppKit/NSMenu.subproj/NSMenuView.m b/AppKit/NSMenu.subproj/NSMenuView.m
+index 4da164da..e689de0a 100644
+--- a/AppKit/NSMenu.subproj/NSMenuView.m
++++ b/AppKit/NSMenu.subproj/NSMenuView.m
+@@ -225,7 +225,10 @@ const NSTimeInterval kMouseMovementThreshold = .001f;
+                     // Which item is the cursor on top of?
+                     NSUInteger itemIndex =
+                             [checkView itemIndexAtPoint: checkPoint rect: &lastRect];
+-                    lastRectView = checkView;
++                    // A miss need not write lastRect. Do not associate its
++                    // stale value with this view: entering a submenu through
++                    // its border must still hit-test the first item next.
++                    lastRectView = itemIndex == NSNotFound ? nil : checkView;
+ 
+                     MENUDEBUG(@"found an item index: %u", itemIndex);
+ 
+diff --git a/AppKit/NSView.m b/AppKit/NSView.m
+index 5caa1d22..84c7c28a 100644
+--- a/AppKit/NSView.m
++++ b/AppKit/NSView.m
+@@ -85,6 +85,12 @@ const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPresentationOptio
+ 
+ static BOOL NSViewLayersEnabled = YES;
+ static BOOL NSShowAllViews = NO;
++static inline void configureLayerGeometry(NSView *self);
++
++static NSRect layerFrameInWindow(NSView *view) {
++    NSView *parent = [view superview];
++    return parent ? [parent convertRect: [view frame] toView: nil] : [view frame];
++}
+ 
+ + (void) initialize {
+     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+@@ -445,6 +451,12 @@ typedef struct __VFlags {
+     _alphaValue = 1.0;
+     _allowedTouchTypes = NSTouchTypeMaskDirect;
+ 
++    // A layer requested before super's initializer captured the object's
++    // zero-initialized alpha and bounds. Keep both entry points consistent
++    // with requesting the backing layer after initialization.
++    [_layer setOpacity: _alphaValue];
++    configureLayerGeometry(self);
++
+     return self;
+ }
+ 
+@@ -1118,12 +1130,7 @@ static BOOL applyFrame(NSView *self, NSRect frame) {
+         [self resizeSubviewsWithOldSize: oldSize];
+     }
+ 
+-    NSRect layerFrame = self->_frame;
+-
+-    if (self->_superview != nil)
+-        layerFrame = [self->_superview convertRect: layerFrame toView: nil];
+-
+-    [self->_layerContext setFrame: layerFrame];
++    [self->_layerContext setFrame: layerFrameInWindow(self)];
+ 
+     invalidateTransform(self);
+     return YES;
+@@ -1238,7 +1245,7 @@ static void postFrameChange(NSView *self) {
+         if (_layerContext && _window == nil) {
+             [self _removeLayerFromSuperlayer];
+         } else if (_layerContext) {
+-            [_layerContext setSubwindow: [_window _createSubWindowWithFrame: [self frame]]];
++            [_layerContext setSubwindow: [_window _createSubWindowWithFrame: layerFrameInWindow(self)]];
+             [self _updateLayerVisibility];
+         } else if (_layer != nil && _window != nil) {
+             [self _addLayerToSuperlayer];
+@@ -1993,10 +2000,13 @@ static char inputContextKey;
+ 
+ - (void) _createLayerContextIfNeeded {
+     if (_layerContext == nil && [_superview layer] == nil && _window != nil) {
+-        _layerContext = [[CALayerContext alloc] initWithFrame: [self frame]];
++        // Native child windows use window coordinates, including all ancestor
++        // offsets, just as the subsequent frame-update path does.
++        NSRect windowFrame = layerFrameInWindow(self);
++        _layerContext = [[CALayerContext alloc] initWithFrame: windowFrame];
+         [_layerContext setLayer: _layer];
+         if (_window) {
+-            [_layerContext setSubwindow: [_window _createSubWindowWithFrame: [self frame]]];
++            [_layerContext setSubwindow: [_window _createSubWindowWithFrame: windowFrame]];
+             [self _updateLayerVisibility];
+         }
+     }
+diff --git a/AppKit/X11.backend/X11Display.m b/AppKit/X11.backend/X11Display.m
+index 933998a3..f5d063f5 100644
+--- a/AppKit/X11.backend/X11Display.m
++++ b/AppKit/X11.backend/X11Display.m
+@@ -1466,6 +1466,38 @@ static BOOL relativeEventPoint(Display *dpy, X11Window *window, const X11Relativ
+     return YES;
+ }
+ 
++// A focus change between windows of this client must not transiently resign
++// the application. Native child windows can own the X input focus, so resolve
++// their ancestry to the AppKit platform window rather than matching only XIDs.
++static X11Window *ownedInputFocusWindow(X11Display *display, Display *dpy) {
++    Window focus = None, root = DefaultRootWindow(dpy);
++    int revert;
++    XGetInputFocus(dpy, &focus, &revert);
++    if (focus == PointerRoot) {
++        Window reportedRoot, child;
++        int rootX, rootY, localX, localY;
++        unsigned int state;
++        if (!XQueryPointer(dpy, root, &reportedRoot, &child, &rootX, &rootY,
++                           &localX, &localY, &state))
++            return nil;
++        focus = child;
++    }
++    while (focus != None && focus != root) {
++        X11Window *owned = (X11Window *) [display windowForID: focus];
++        if (owned != nil)
++            return [owned isMapped] ? owned : nil;
++        Window parent, reportedRoot, *children = NULL;
++        unsigned int count;
++        Status found = XQueryTree(dpy, focus, &reportedRoot, &parent, &children, &count);
++        if (children != NULL)
++            XFree(children);
++        if (!found || parent == focus)
++            break;
++        focus = parent;
++    }
++    return nil;
++}
++
+ - (void) postXEvent: (XEvent *) ev {
+     id event = nil;
+     NSEventType type;
+@@ -1844,6 +1876,12 @@ static BOOL relativeEventPoint(Display *dpy, X11Window *window, const X11Relativ
+         break;
+ 
+     case FocusIn:
++        // X11 grab/ungrab notifications describe temporary keyboard routing,
++        // not a change of application activation. In particular, deactivating
++        // here cancels an open NSMenu before its mouse-up can send the action.
++        // https://www.x.org/releases/current/doc/libX11/libX11/libX11.html
++        if (ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab)
++            break;
+         NSLog(@"FocusIn");
+         // The server can still report FocusIn (detail NotifyPointer) for a
+         // window we have unmapped; an ordered-out window must not become key.
+@@ -1853,16 +1891,18 @@ static BOOL relativeEventPoint(Display *dpy, X11Window *window, const X11Relativ
+             [[delegate attachedSheet] makeKeyAndOrderFront: delegate];
+             break;
+         }
+-        if (lastFocusedWindow) {
+-            [lastFocusedWindow platformWindowDeactivated: window
+-                                 checkForAppDeactivation: NO];
+-            lastFocusedWindow = nil;
+-        }
++        id previousFocusedWindow = [[lastFocusedWindow retain] autorelease];
++        lastFocusedWindow = nil;
+         if (window != nil)
+             window->_receivingFocus = YES;
+         [delegate platformWindowActivated: window displayIfNeeded: YES];
+         if (window != nil)
+             window->_receivingFocus = NO;
++        // Mark the new owner active before retiring the previous one. This
++        // keeps NSApplication active across its own popup/key-window transfer.
++        if (previousFocusedWindow != nil && previousFocusedWindow != delegate)
++            [previousFocusedWindow platformWindowDeactivated: window
++                                     checkForAppDeactivation: NO];
+         lastFocusedWindow = delegate;
+         if (window != nil)
+             XSetICFocus(window->_xic);
+@@ -1875,7 +1915,13 @@ static BOOL relativeEventPoint(Display *dpy, X11Window *window, const X11Relativ
+         break;
+ 
+     case FocusOut:
++        if (ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab)
++            break;
+         NSLog(@"FocusOut");
++        // FocusIn will complete an internal transfer. Deactivating now would
++        // queue NSApplicationDeactivated and cancel menu tracking prematurely.
++        if (ownedInputFocusWindow(self, _display) != nil)
++            break;
+         [delegate platformWindowDeactivated: window
+                     checkForAppDeactivation: NO];
+         lastFocusedWindow = nil;

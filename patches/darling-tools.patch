@@ -1,8 +1,8 @@
 diff --git a/src/tools/CMakeLists.txt b/src/tools/CMakeLists.txt
-index c038774bb..d7c33b519 100644
+index c038774bb..b951106e6 100644
 --- a/src/tools/CMakeLists.txt
 +++ b/src/tools/CMakeLists.txt
-@@ -19,6 +19,31 @@ if (COMPONENT_cli)
+@@ -19,6 +19,64 @@ if (COMPONENT_cli)
  	target_link_libraries(system_profiler CoreFoundation)
  endif()
  
@@ -29,6 +29,39 @@ index c038774bb..d7c33b519 100644
 +	target_compile_options(metal-baseline-demo PRIVATE -fblocks)
 +	set_target_properties(metal-baseline-demo PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 +	target_link_libraries(metal-baseline-demo Metal MetalKit AppKit QuartzCore Foundation CoreGraphics cxx)
++
++	set(METAL_SAMPLE_DIR "${METAL_BASELINE_DIR}/apple-sync")
++	set(METAL_SAMPLE_BUNDLE "${CMAKE_CURRENT_BINARY_DIR}/apple-metal-sample.app")
++	set(METAL_SAMPLE_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/apple-sync-generated")
++	file(MAKE_DIRECTORY "${METAL_SAMPLE_GENERATED}" "${METAL_SAMPLE_BUNDLE}/Contents/Resources")
++	# Replace Clang module imports with equivalent headers for Darling's SDK.
++	# The renderer, triangle data and shader logic remain upstream-identical.
++	foreach(name AAPLRenderer.m AAPLRenderer.h AAPLTriangle.m AAPLTriangle.h AAPLShaderTypes.h)
++		set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${METAL_SAMPLE_DIR}/upstream/Renderer/${name}")
++		file(READ "${METAL_SAMPLE_DIR}/upstream/Renderer/${name}" source)
++		string(REPLACE "@import MetalKit;" "#import <MetalKit/MetalKit.h>" source "${source}")
++		file(WRITE "${METAL_SAMPLE_GENERATED}/${name}" "${source}")
++	endforeach()
++	configure_file("${METAL_SAMPLE_DIR}/Info.plist" "${METAL_SAMPLE_BUNDLE}/Contents/Info.plist" COPYONLY)
++	set(MSLC_EXECUTABLE "${CMAKE_SOURCE_DIR}/build/metal-baseline/mslc/mslc" CACHE FILEPATH "Host mslc executable for offline shader compilation")
++	find_package(Python3 COMPONENTS Interpreter REQUIRED)
++	add_custom_command(OUTPUT "${METAL_SAMPLE_BUNDLE}/Contents/Resources/default.metallib"
++		COMMAND "${Python3_EXECUTABLE}" "${METAL_BASELINE_DIR}/compile-library.py"
++			"${METAL_SAMPLE_DIR}/upstream/Renderer/AAPLShaders.metal" --mslc "${MSLC_EXECUTABLE}"
++			-I "${METAL_SAMPLE_DIR}/upstream/Renderer" -o "${METAL_SAMPLE_BUNDLE}/Contents/Resources/default.metallib"
++		DEPENDS "${METAL_BASELINE_DIR}/compile-library.py" "${METAL_SAMPLE_DIR}/upstream/Renderer/AAPLShaders.metal"
++			"${METAL_SAMPLE_DIR}/upstream/Renderer/AAPLShaderTypes.h" "${MSLC_EXECUTABLE}"
++		VERBATIM)
++	add_custom_target(apple-metal-sample-shaders DEPENDS "${METAL_SAMPLE_BUNDLE}/Contents/Resources/default.metallib")
++	add_darling_executable(apple-metal-sample "${METAL_SAMPLE_DIR}/main.mm"
++		"${METAL_SAMPLE_DIR}/library-tests.mm" "${METAL_SAMPLE_DIR}/menu-tests.mm"
++		"${METAL_SAMPLE_GENERATED}/AAPLRenderer.m" "${METAL_SAMPLE_GENERATED}/AAPLTriangle.m")
++	set_target_properties(apple-metal-sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${METAL_SAMPLE_BUNDLE}/Contents/MacOS"
++		CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
++	target_include_directories(apple-metal-sample PRIVATE "${METAL_SAMPLE_GENERATED}" "${CMAKE_SOURCE_DIR}/src/simd/include")
++	target_compile_options(apple-metal-sample PRIVATE -fobjc-arc -fblocks)
++	target_link_libraries(apple-metal-sample Metal MetalKit AppKit QuartzCore Foundation CoreGraphics cxx)
++	add_dependencies(apple-metal-sample apple-metal-sample-shaders)
 +endif()
 +
  if (COMPONENT_gui)

@@ -7,6 +7,7 @@
 #if DARLING_METAL_ENABLED
 #if DARLING_METAL_SOURCE_COMPILER
 #include <mslc/mslc.h>
+#endif
 #include <cstring>
 #include <memory>
 #include <cmath>
@@ -15,6 +16,7 @@
 #include <set>
 #include <initializer_list>
 #include <limits>
+#include <vector>
 
 static bool sourceReflectionIndex(id value, size_t& index) {
     if (![value isKindOfClass: [NSNumber class]])
@@ -152,9 +154,9 @@ static bool readSourceResources(NSDictionary* entry, Indium::FunctionReflection&
 
 static bool readSourceReflection(NSDictionary* document, Indium::LibraryReflection& reflection,
                                 NSMutableArray* names, NSString** reason) {
+    size_t version=0;
     if (![document isKindOfClass: [NSDictionary class]] ||
-        ![document[@"reflection_version"] isKindOfClass: [NSNumber class]] ||
-        [document[@"reflection_version"] unsignedIntegerValue] != 2 ||
+        !sourceReflectionIndex(document[@"reflection_version"],version) || version != 2 ||
         ![document[@"entry_points"] isKindOfClass: [NSArray class]]) {
         *reason = @"The source compiler returned an unsupported reflection document";
         return false;
@@ -196,7 +198,103 @@ static bool readSourceReflection(NSDictionary* document, Indium::LibraryReflecti
     }
     return true;
 }
-#endif
+
+static id<MTLLibrary> newReflectedLibrary(std::shared_ptr<Indium::Device> device,
+    id<MTLDevice> owner, const void* bytes, size_t length, id document,
+    MTLLibraryError reflectionError, NSError** error) {
+    Indium::LibraryReflection reflection;
+    NSMutableArray* names = [NSMutableArray array];
+    NSString* reason = nil;
+    if (!readSourceReflection(document, reflection, names, &reason)) {
+        MTLSetError(error, reflectionError, reason);
+        return nil;
+    }
+    std::string failure;
+    auto library = device->newLibrary(bytes, length, reflection, &failure);
+    if (!library) {
+        MTLSetError(error, MTLLibraryErrorCompileFailure, [NSString stringWithUTF8String: failure.c_str()]);
+        return nil;
+    }
+    return [[MTLLibraryInternal alloc] initWithLibrary: library device: owner functionNames: names];
+}
+
+// The open Darling toolchain's container, distinct from Apple's AIR encoding.
+// Header layout: demo/PORTABLE-LIBRARY.md. No original binary was inspected.
+static const uint8_t portableMagic[] = {'D','M','S','L','S','P','V',0};
+
+// Validate the metadata this container supplies to Indium's producer-side
+// interface. Instruction framing/OpEntryPoint follow the public SPIR-V spec:
+// https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpEntryPoint
+static bool portableEntriesMatch(const std::vector<uint32_t>& code, NSDictionary* document) {
+    if (code[0]!=0x07230203 || code[4]!=0 || ![document isKindOfClass:[NSDictionary class]] ||
+        ![document[@"entry_points"] isKindOfClass:[NSArray class]]) return false;
+    std::map<std::string,std::string> entries;
+    for (size_t offset=5;offset<code.size();) {
+        const uint32_t words=code[offset]>>16,opcode=code[offset]&0xffff;
+        if (!words || words>code.size()-offset) return false;
+        if (opcode==15) {
+            if (words<4) return false;
+            // A byte view is permitted for inspecting words; the checked
+            // instruction length bounds memchr before constructing a string.
+            const char* name=reinterpret_cast<const char*>(code.data()+offset+3);
+            const void* end=std::memchr(name,0,(words-3)*sizeof(uint32_t));
+            if (!end || end==name) return false;
+            const char* stage=code[offset+1]==0?"vertex":code[offset+1]==4?"fragment":code[offset+1]==5?"compute":nullptr;
+            if (!stage || !entries.emplace(std::string(name,static_cast<const char*>(end)-name),stage).second) return false;
+        }
+        offset+=words;
+    }
+    if (entries.size()!=[document[@"entry_points"] count]) return false;
+    for (id entry in document[@"entry_points"]) {
+        if (![entry isKindOfClass:[NSDictionary class]] || ![entry[@"name"] isKindOfClass:[NSString class]] ||
+            ![entry[@"stage"] isKindOfClass:[NSString class]]) return false;
+        const char* name=[entry[@"name"] UTF8String];
+        if (!name || std::strlen(name)!=[entry[@"name"] lengthOfBytesUsingEncoding:NSUTF8StringEncoding]) return false;
+        auto found=entries.find(name);
+        if (found==entries.end() || ![entry[@"stage"] isEqualToString:[NSString stringWithUTF8String:found->second.c_str()]]) return false;
+        entries.erase(found);
+    }
+    return entries.empty();
+}
+
+bool MTLIsPortableLibrary(const void* bytes, size_t length) {
+    return bytes && length >= sizeof(portableMagic) &&
+        std::memcmp(bytes, portableMagic, sizeof(portableMagic)) == 0;
+}
+
+id<MTLLibrary> MTLLoadPortableLibrary(std::shared_ptr<Indium::Device> device,
+    id<MTLDevice> owner, const void* bytes, size_t length, NSError** error) {
+    if (!MTLIsPortableLibrary(bytes,length) || length < 24) {
+        MTLSetError(error, MTLLibraryErrorCompileFailure, @"Truncated Darling shader library header");
+        return nil;
+    }
+    const auto* data=static_cast<const uint8_t*>(bytes);
+    auto word=[&](size_t offset) -> uint32_t {
+        return uint32_t(data[offset]) | uint32_t(data[offset+1])<<8 |
+            uint32_t(data[offset+2])<<16 | uint32_t(data[offset+3])<<24;
+    };
+    if (word(8)!=1) {
+        MTLSetError(error, MTLLibraryErrorUnsupported, @"Unsupported Darling shader library version");
+        return nil;
+    }
+    const size_t codeLength=word(12),jsonLength=word(16);
+    if (word(20)!=0 || codeLength<20 || codeLength%4 || codeLength>length-24 ||
+        jsonLength==0 || jsonLength!=length-24-codeLength) {
+        MTLSetError(error, MTLLibraryErrorCompileFailure, @"Invalid Darling shader library lengths or reserved field");
+        return nil;
+    }
+    NSData* json=[NSData dataWithBytes:data+24+codeLength length:jsonLength];
+    id document=[NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
+    // A dispatch_data region may be unaligned; copy before Indium/Vulkan reads
+    // uint32 words rather than casting the caller's potentially unaligned bytes.
+    std::vector<uint32_t> code(codeLength/4);
+    std::memcpy(code.data(),data+24,codeLength);
+    if (!portableEntriesMatch(code,document)) {
+        MTLSetError(error, MTLLibraryErrorCompileFailure, @"Darling shader library entry points do not match its SPIR-V module");
+        return nil;
+    }
+    return newReflectedLibrary(device,owner,code.data(),codeLength,document,MTLLibraryErrorCompileFailure,error);
+}
 
 id<MTLLibrary> MTLCompileSourceLibrary(std::shared_ptr<Indium::Device> device,
     id<MTLDevice> owner, NSString* source, NSError** error) {
@@ -220,20 +318,7 @@ id<MTLLibrary> MTLCompileSourceLibrary(std::shared_ptr<Indium::Device> device,
     }
     NSData* data = [NSData dataWithBytes: reflectionText length: std::strlen(reflectionText)];
     id document = [NSJSONSerialization JSONObjectWithData: data options: 0 error: nil];
-    Indium::LibraryReflection reflection;
-    NSMutableArray* names = [NSMutableArray array];
-    NSString* reason = nil;
-    if (!readSourceReflection(document, reflection, names, &reason)) {
-        MTLSetError(error, MTLLibraryErrorUnsupported, reason);
-        return nil;
-    }
-    std::string failure;
-    auto library = device->newLibrary(bytes, length, reflection, &failure);
-    if (!library) {
-        MTLSetError(error, MTLLibraryErrorCompileFailure, [NSString stringWithUTF8String: failure.c_str()]);
-        return nil;
-    }
-    return [[MTLLibraryInternal alloc] initWithLibrary: library device: owner functionNames: names];
+    return newReflectedLibrary(device,owner,bytes,length,document,MTLLibraryErrorUnsupported,error);
 #else
     MTLSetError(error, MTLLibraryErrorUnsupported, @"Metal source compilation was not enabled at build time");
     return nil;

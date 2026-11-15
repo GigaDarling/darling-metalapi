@@ -1,0 +1,9 @@
+{
+  "title": "Synchronizing CPU and GPU Work",
+  "documentation": "https://developer.apple.com/documentation/metal/synchronizing-cpu-and-gpu-work",
+  "archive": "https://docs-assets.developer.apple.com/published/a2ec04f3244c/SynchronizingCPUAndGPUWork.zip",
+  "sha256": "33a12c250263f261ce3816f2d0ff0c410eb0d1b90a3156fde7df3b0aefcdc205",
+  "license": "MIT",
+  "copyright": "Copyright 2026 Apple Inc.",
+  "source_files_modified": false
+}

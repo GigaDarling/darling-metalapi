@@ -10,6 +10,42 @@ Indium и Vulkan. Компиляция MSL из исходного текста 
 **[Скриншот](docs/media/lighting-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/japNslow/darling-metalapi/releases)**
 
+## Новое в v0.4.0: официальный sample Apple и AppKit
+
+Запускается [Synchronizing CPU and GPU Work](https://developer.apple.com/documentation/metal/synchronizing-cpu-and-gpu-work):
+50 цветных треугольников движутся волной; renderer использует три буфера кадров,
+семафор и completion handlers. Шесть файлов renderer/shader взяты **без изменений**
+из официального ZIP, SHA-256 закреплён, MIT license и copyright сохранены.
+Наши части — AppKit bootstrap, CMake, открытый формат библиотеки и проверки.
+Это сборка официального исходного примера нашим компилятором, не запуск готовой
+Apple AIR-библиотеки или Xcode-проекта без адаптации.
+
+![Официальный sample Apple в настоящем окне Darling](docs/media/apple-sync-animation.gif)
+
+После локальной сборки:
+
+```sh
+python3 run.py apple-window \
+  --darling-prefix work/darling/build/metal-baseline/prefix \
+  --demo work/darling/build/metal-baseline/darling/src/tools/apple-metal-sample.app/Contents/MacOS/apple-metal-sample \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+В окне также работают настоящие меню **Файл / Правка / Вид / Окно / Справка**,
+кнопка со счётчиком, пауза кликом или пробелом, шаг по кадрам и меню по ПКМ.
+Текстовое поле поддерживает стандартные команды редактирования.
+
+![AppKit: меню, кнопки и мышь](docs/media/apple-controls-window.png)
+
+Проверки: `apple-library-test` и `apple-window-test` с теми же путями.
+Регрессии выбора меню и фокуса выполняются через `demo/apple-sync/check-private-x11.py`
+на отдельном Xvfb, не затрагивая рабочий стол.
+На Intel проверено 442 692 пикселя четырёх кадров/трёх размеров, ноль несовпадений;
+36 негативных теста формата библиотеки проходят. Подробности, изменения сборки
+и происхождение кода — [demo/apple-sync/README.md](demo/apple-sync/README.md).
+**[Релиз v0.4.0](https://github.com/japNslow/darling-metalapi/releases/tag/v0.4.0)** включает готовый sample и исправления AppKit/X11.
+[Видео MP4](docs/media/apple-sync-animation.mp4) · [Скриншот](docs/media/apple-sync-window.png).
+
 ## Что работает
 
 - Публичный `newLibraryWithSource:options:error:` для поддерживаемого подмножества MSL.
@@ -95,10 +131,11 @@ fragment buffer 6 / texture 2 / sampler 4, UV на кубе и переключ�
 отсчётах. Проверка другим материалом намеренно обнаруживает расхождения.
 Режимы проверки: `textures-offscreen` и `textures-window-test`.
 
-## Готовая сборка v0.3.0
+## Готовая сборка v0.4.0
 
 В Releases находится **binary overlay Linux x86_64**, включающий Metal,
-MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
+MetalKit, исправленный AppKit и его X11 backend, Indium/Iridium, Mach-O demo
+и приложение официального sample Apple.
 **Полный runtime Darling в архив не входит.** Нужен Darling GUI из закреплённой
 ревизии, собранный с `ENABLE_METAL=ON`; произвольные системные версии могут
 быть несовместимы. Ревизии перечислены в `upstream.json`.
@@ -110,14 +147,14 @@ MetalKit, исправленный AppKit, Indium/Iridium и Mach-O demo.
 Runner использует rootless user namespaces, `unshare`, `setpriv`,
 `newuidmap`/`newgidmap` и настроенные subordinate UID/GID ranges.
 
-Распакуйте `darling-metalapi-v0.3.0-linux-x86_64.tar.gz`. В командах ниже
+Распакуйте `darling-metalapi-v0.4.0-linux-x86_64.tar.gz`. В командах ниже
 `/path/to/darling-prefix` — каталог установки Darling, содержащий `bin/darling`,
 а не пользовательский DPREFIX. Остановите приложения, использующие эту установку.
 
 ```sh
 python3 install-overlay.py --prefix /path/to/darling-prefix --dry-run
 python3 install-overlay.py --prefix /path/to/darling-prefix
-python3 run.py textures-window --darling-prefix /path/to/darling-prefix \
+python3 run.py apple-window --darling-prefix /path/to/darling-prefix \
   --icd /usr/share/vulkan/icd.d/intel_icd.json
 ```
 
@@ -170,8 +207,8 @@ python3 run.py shapes-window \
 - `metal/`: исходники darling-metal с нашими изменениями; MPL-2.0 notices сохранены.
 - `metal/deps/indium`: закреплённый открытый backend, 0BSD.
 - `deps/mslc`: закреплённый открытый компилятор, MIT.
-- `demo/`: самостоятельно написанное GPL-3.0-or-later демо и проверки.
-- `patches/`: интеграция в Darling, исправление NSView и совместимость
+- `demo/`: GPL-3.0-or-later демо и проверки, а также официальный MIT sample Apple с сохранённой лицензией.
+- `patches/`: интеграция в Darling, исправления NSView, меню и X11-фокуса, совместимость
   darlingserver с публичными OpenSSL 4 API.
 - `docs/media/`: снимок и шестисекундная запись настоящего окна, захват 15 FPS.
 
@@ -179,7 +216,7 @@ python3 run.py shapes-window \
 В binary overlay включены исходники GPL-демо и тексты лицензий.
 См. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) и `upstream.json`.
 
-Источники изменений: публичные API Metal/NSView, интерфейс mslc и открытый
-интерфейс Indium. Ограниченные исходники Apple, CoreCrypto, дизассемблирование
+Источники изменений: публичные API Metal/AppKit, документация Xlib, официальный
+MIT sample Apple, интерфейс mslc и открытый интерфейс Indium. Ограниченные исходники Apple, CoreCrypto, дизассемблирование
 и декомпиляция Apple binaries не использовались. Примерные 58 FPS в коротком
 локальном прогоне не являются гарантией производительности.

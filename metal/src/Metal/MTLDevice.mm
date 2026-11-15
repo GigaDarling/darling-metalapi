@@ -691,6 +691,11 @@ static size_t iosurfacePixelSize(MTLPixelFormat format)
 	if (error) {
 		*error = nil;
 	}
+	if (MTLIsPortableLibrary(bytes, length)) {
+		return MTLCallIndium(error, MTLLibraryErrorCompileFailure, [&]() -> id<MTLLibrary> {
+			return MTLLoadPortableLibrary(_device, self, bytes, length, error);
+		});
+	}
 	auto lib = MTLCallIndium(error, MTLLibraryErrorCompileFailure, [&]() {
 		return _device->newLibrary(bytes, length);
 	});
