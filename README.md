@@ -8,7 +8,7 @@ Indium и Vulkan. Компиляция MSL из исходного текста 
 
 **[Видео реального окна — MP4](docs/media/lighting-animation.mp4)** ·
 **[Скриншот](docs/media/lighting-window.png)** ·
-**[Сборки и видео в Releases](https://github.com/japNslow/darling-metalapi/releases)**
+**[Сборки и видео в Releases](https://github.com/GigaDarling/darling-metalapi/releases)**
 
 ## Новое в v0.4.0: официальный sample Apple и AppKit
 
@@ -43,7 +43,7 @@ python3 run.py apple-window \
 На Intel проверено 442 692 пикселя четырёх кадров/трёх размеров, ноль несовпадений;
 36 негативных теста формата библиотеки проходят. Подробности, изменения сборки
 и происхождение кода — [demo/apple-sync/README.md](demo/apple-sync/README.md).
-**[Релиз v0.4.0](https://github.com/japNslow/darling-metalapi/releases/tag/v0.4.0)** включает готовый sample и исправления AppKit/X11.
+**[Релиз v0.4.0](https://github.com/GigaDarling/darling-metalapi/releases/tag/v0.4.0)** включает готовый sample и исправления AppKit/X11.
 [Видео MP4](docs/media/apple-sync-animation.mp4) · [Скриншот](docs/media/apple-sync-window.png).
 
 ## Что работает
@@ -183,7 +183,7 @@ Runner создаёт отдельный временный DPREFIX и удал�
 локальные изменения в изменяемых подмодулях.
 
 ```sh
-git clone --recurse-submodules https://github.com/japNslow/darling-metalapi.git
+git clone --recurse-submodules https://github.com/GigaDarling/darling-metalapi.git
 cd darling-metalapi
 git clone https://github.com/darlinghq/darling.git work/darling
 git -C work/darling checkout b5e94cd7347616c015e327711028d48a1a459888

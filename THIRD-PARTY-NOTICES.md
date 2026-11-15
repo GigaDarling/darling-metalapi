@@ -6,7 +6,7 @@ Exact upstream revisions are recorded in `upstream.json`.
 
 | Component | Source | License / included notice |
 | --- | --- | --- |
-| Darling integration and independently authored demo/tools | https://github.com/japNslow/darling-metalapi | GPL-3.0-or-later, `LICENSE` |
+| Darling integration and independently authored demo/tools | https://github.com/GigaDarling/darling-metalapi | GPL-3.0-or-later, `LICENSE` |
 | Metal and MetalKit implementation and public headers | https://github.com/darlinghq/darling-metal | Per-file MPL-2.0 notices; `metal/LICENSES/` |
 | Indium / Iridium | https://github.com/darlinghq/indium | 0BSD, `licenses/indium-LICENSE` |
 | mslc, statically linked into Metal when enabled | https://github.com/cristim/mslc | MIT, `licenses/mslc-LICENSE` |
