@@ -86,3 +86,22 @@ Provenance: publicly documented Metal/MetalKit/AppKit/AudioQueue interfaces,
 licensed DoomGeneric module contracts and the DMX PCM lump format. No Apple
 binary analysis or restricted material was used. The DOOM screenshot records
 actual gameplay through Darling Metal on an Intel GPU. Music is not supported.
+
+## Complex model viewer in v0.6.0
+
+Flight Helmet is a CC0-1.0 sample from KhronosGroup/glTF-Sample-Assets, pinned to
+`4995a638c96dbc94376d3d6164e70fee3ac7f7a2`. Upstream credits Gary Hsu for conversion
+from Maya and identifies the asset as public domain, 2018. Source, exact hashes
+and credit are recorded in `demo/model/sample-assets.json` and
+`demo/model/ASSET-NOTICE.md`. The application bundle includes a prepared copy:
+flattened/scaled geometry and decoded/resized RGBA images. Original downloads
+are not overwritten. The original glTF and textures are fetched independently
+for source builds; their license is separate from the GPL program.
+
+The model importer, bounded pack format, renderer, shader and tests are
+independently authored GPL-3.0-or-later code. Host-side image conversion uses
+Pillow (MIT-CMU), not bundled Python implementation code. No new guest library
+or framework implementation is introduced. Provenance: public Metal/MetalKit/
+AppKit contracts, the Khronos glTF 2.0 specification, and the licensed sample.
+No Apple binary inspection or restricted source was used. Development was
+assisted by OpenAI Codex. Source and binary distributions retain this notice.

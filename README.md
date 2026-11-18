@@ -1,14 +1,40 @@
 # darling-metalapi
 
 Экспериментальная реализация части Apple Metal API в Linux через Darling,
-Indium и Vulkan. Компиляция MSL из исходного текста через mslc, простые фигуры,
+Indium и Vulkan. Компиляция MSL из исходного текста через mslc, сложные 3D-модели,
 анимация и проверка результата чтением пикселей с GPU.
 
-![Текстуры и вращающийся куб в настоящем окне Darling](docs/media/lighting-animation.gif)
+![Сложная glTF-модель в настоящем окне Darling Metal](docs/media/model-window.png)
 
-**[Видео реального окна — MP4](docs/media/lighting-animation.mp4)** ·
-**[Скриншот](docs/media/lighting-window.png)** ·
+**[Скриншот модели](docs/media/model-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/GigaDarling/darling-metalapi/releases)**
+
+## Новое в v0.6.0: сложная 3D-модель glTF
+
+CC0-модель **Flight Helmet**: **55 392 вершины, 94 722 треугольника, шесть
+материалов и 15 текстур**. Геометрия обрабатывается GPU через Metal: uint32
+индексы, перспектива, depth test, base color, normal maps, metallic/roughness,
+occlusion и emissive. Свет учитывает шероховатость и металл; IBL и преломление
+стекла пока не реализованы.
+
+```sh
+python3 run.py model-window \
+  --darling-prefix work/darling/build/metal-baseline/prefix \
+  --demo work/darling/build/metal-baseline/darling/src/tools/model/model-viewer.app/Contents/MacOS/model-viewer \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+В бинарном комплекте `--demo` можно опустить — модель включена в приложение.
+Перетаскивание меняет ракурс, колесо приближает, пробел переключает вращение,
+**L** переключает освещение, **N** показывает normal maps, **R** сбрасывает вид.
+Окно и управление подтверждены пользователем. На Intel и lavapipe три ракурса/
+размера прошли независимую CPU ray/triangle проверку геометрии и перекрытия:
+**1 716 проверенных точек, ноль расхождений**, включая обратный порядок частей.
+
+Статические `.gltf`/GLB подготавливаются host-импортёром в документированный
+model pack; загрузка, подготовка и проверка SHA-256 sample автоматизированы в
+`build.py`. Для исходной сборки нужен Pillow (MIT-CMU); в готовой сборке он не
+требуется. [Импорт своих моделей, ограничения формата и проверки](demo/model/README.md).
 
 ## Новое в v0.5.0: DOOM с клавиатурой и звуком
 

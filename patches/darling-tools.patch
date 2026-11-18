@@ -1,8 +1,8 @@
 diff --git a/src/tools/CMakeLists.txt b/src/tools/CMakeLists.txt
-index c038774bb..d4f92e062 100644
+index c038774bb..65a464e39 100644
 --- a/src/tools/CMakeLists.txt
 +++ b/src/tools/CMakeLists.txt
-@@ -19,6 +19,65 @@ if (COMPONENT_cli)
+@@ -19,6 +19,66 @@ if (COMPONENT_cli)
  	target_link_libraries(system_profiler CoreFoundation)
  endif()
  
@@ -63,6 +63,7 @@ index c038774bb..d4f92e062 100644
 +	target_link_libraries(apple-metal-sample Metal MetalKit AppKit QuartzCore Foundation CoreGraphics cxx)
 +	add_dependencies(apple-metal-sample apple-metal-sample-shaders)
 +	add_subdirectory("${METAL_BASELINE_DIR}/doom" "${CMAKE_CURRENT_BINARY_DIR}/doom")
++	add_subdirectory("${METAL_BASELINE_DIR}/model" "${CMAKE_CURRENT_BINARY_DIR}/model")
 +endif()
 +
  if (COMPONENT_gui)

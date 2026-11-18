@@ -359,3 +359,16 @@ See [apple-sync/README.md](apple-sync/README.md) for provenance, building and
 The renderer/shader files match the official MIT archive; the AppKit bootstrap,
 Darling SPIR-V packaging and analytic verification are independently authored.
 The binary overlay includes the official sample app and the AppKit/X11 input fixes.
+
+
+## 0.6.0 — сложная модель
+
+Flight Helmet (CC0): 55 392 вершины, 94 722 треугольника, шесть материалов и
+15 текстур. Новый самостоятельный Mach-O viewer: `model/`.
+
+```sh
+python3 tools/metal-baseline/run-render.py model-window --icd /usr/share/vulkan/icd.d/intel_icd.json
+python3 tools/metal-baseline/run-render.py model-offscreen --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+[Устройство, импорт своих glTF/GLB и тесты](model/README.md).

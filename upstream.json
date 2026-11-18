@@ -30,5 +30,11 @@
     "revision": "e257a09527062bfb986b6e5e0780839b6cbd5b71",
     "license": "GPL-2.0-or-later",
     "integration": "External engine with independently authored AppKit, Metal and AudioQueue modules; generated dispatcher omits unused SDL_mixer header."
+  },
+  "flight_helmet": {
+    "url": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+    "revision": "4995a638c96dbc94376d3d6164e70fee3ac7f7a2",
+    "license": "CC0-1.0",
+    "manifest": "demo/model/sample-assets.json"
   }
 }

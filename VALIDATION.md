@@ -183,3 +183,34 @@ The tools integration patch applied to the pinned pristine CMake file and
 produced the exact local integration. Archive contents were checked for the
 Doom executable, matching frontend sources, corresponding engine source and
 license; no WAD or stale running executable is present.
+
+
+## v0.6.0 complex 3D model
+
+- Pinned CC0 Flight Helmet: original glTF, 3,227,148-byte geometry buffer and
+  15 PNG hashes verified against `demo/model/sample-assets.json`.
+- Prepared pack: 55,392 vertices, 94,722 triangles, six primitives/materials,
+  15 images limited to 1024x1024, 67,597,032 bytes. Re-import after adding input
+  validation produced an identical pack.
+- Shader compiled with mslc and passed SPIR-V validation. The Mach-O application
+  compiled against the existing Darling Metal runtime.
+- Intel Iris Xe and lavapipe each passed three camera/aspect checks: 577, 571
+  and 568 stable points (1,716 total), including all six materials. Zero
+  mismatches against independent CPU ray/triangle nearest-hit results and
+  zero mismatches with reversed primitive submission.
+- Rotation changes the textured output; portrait resize uses a matching depth
+  attachment. Blank-image negative control is rejected.
+- 14 synthetic glTF import tests pass: interleaved accessors, uint16 indices,
+  missing normals, GLB, transforms, quaternion rotation, inverse-transpose
+  normals, bounds failures, bad indices, cycles, directory escape, required
+  extensions, non-triangle geometry and unsupported transparency.
+- Native pack checks pass with ASan/UBSan, including every truncation of a
+  minimal fixture, invalid counts/indices/ranges/material/texture references,
+  NaN, trailing data, and the real sample. LeakSanitizer is disabled because
+  the execution sandbox does not support its process inspection.
+- The real desktop window was visually inspected. The user confirmed the
+  model, automatic rotation, dragging, zoom and pause. No desktop input was
+  automated for that check.
+- Source glTF/GLB conversion is host-side; guest loading uses the documented
+  pack. Static opaque triangles are supported; refraction, skins, morphs,
+  animation playback, sparse accessors and full material extensions are not.
