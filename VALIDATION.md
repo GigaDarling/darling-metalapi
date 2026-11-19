@@ -236,3 +236,10 @@ The actual Intel desktop window was captured and visually checked. The user
 confirmed movement, mouse look, jumping, weapons and picture. Xvfb/lavapipe
 window captures are black for both this game and the known model viewer;
 these captures are not claimed as successful windowed validation.
+
+Release packaging check: Metal, MetalKit, QuartzCore and their Indium/Iridium
+libraries were rebuilt together. The packaged model and Vuron windows were
+recorded using the matching, installed Darling prefix; the showcase uses only
+those application windows. Vuron's recorded arena view is static; interactive
+controls were verified separately by the user. Moving an installed launcher
+alone does not relocate Darling's compiled-in runtime paths.

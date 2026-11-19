@@ -1,0 +1,30 @@
+name: Compatibility or rendering issue
+description: Report a reproducible failure with a demo, GPU or driver.
+title: "[Compatibility] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Project version
+      placeholder: v0.7.0 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: Host and GPU
+      description: Distribution, glibc and LLVM versions, GPU, driver and Vulkan ICD path.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Exact launch command and steps; describe expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshot
+      description: Relevant output from the failing command or a screenshot of the affected window.
