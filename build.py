@@ -23,6 +23,9 @@ if args.jobs < 1 or not (darling / "tools/metal-baseline/render-demo.mm").is_fil
 engine = darling / "build/metal-baseline/vendor/doomgeneric"
 subprocess.run([os.sys.executable, str(ROOT / "demo/doom/fetch-engine.py"),
                 "--destination", str(engine)], check=True)
+game = darling / "build/metal-baseline/vendor/Vuron"
+subprocess.run([os.sys.executable, str(ROOT / "demo/vuron/fetch-game.py"),
+                "--destination", str(game)], check=True)
 model_source = darling / "build/metal-baseline/vendor/FlightHelmet"
 model_pack = darling / "build/metal-baseline/models/FlightHelmet.dmodel"
 subprocess.run([os.sys.executable, str(ROOT / "demo/model/fetch-sample.py"),
@@ -41,7 +44,7 @@ subprocess.run(["cmake", "-S", str(darling), "-B", str(build), "-G", "Ninja",
     "-DENABLE_METAL=ON", "-DENABLE_TESTS=OFF", "-DDARLING_NO_CCACHE=ON",
     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5", "-DMSLC_SOURCE_DIR=" + str(compiler),
     "-DMSLC_EXECUTABLE=" + str(host_build / "mslc"),
-    "-DDARLING_BUILD_METAL_DEMO=ON", "-DDOOMGENERIC_SOURCE_DIR=" + str(engine), "-DMODEL_ASSET_PACK=" + str(model_pack)], check=True)
+    "-DDARLING_BUILD_METAL_DEMO=ON", "-DDOOMGENERIC_SOURCE_DIR=" + str(engine), "-DMODEL_ASSET_PACK=" + str(model_pack), "-DVURON_SOURCE_DIR=" + str(game)], check=True)
 subprocess.run(["cmake", "--build", str(build), "--parallel", str(args.jobs)], check=True)
 environment = dict(os.environ, DESTDIR="/")
 subprocess.run(["cmake", "--install", str(build)], env=environment, check=True)

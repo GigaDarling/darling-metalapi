@@ -177,3 +177,80 @@ index 933998a3..f5d063f5 100644
          [delegate platformWindowDeactivated: window
                      checkForAppDeactivation: NO];
          lastFocusedWindow = nil;
+diff --git a/AppKit/include/AppKit/NSEvent.h b/AppKit/include/AppKit/NSEvent.h
+index 23c95c85..7872ca13 100644
+--- a/AppKit/include/AppKit/NSEvent.h
++++ b/AppKit/include/AppKit/NSEvent.h
+@@ -116,11 +116,21 @@ typedef NS_OPTIONS(unsigned long long, NSEventMask) {
+     NSOtherMouseUpMask = 1 << NSOtherMouseUp,
+     NSOtherMouseDraggedMask = 1 << NSOtherMouseDragged,
+     NSAnyEventMask = 0xffffffff,
++    NSEventMaskAny = ~0ULL,
+ 
+     NSPlatformSpecificDisplayMask = 1 << NSPlatformSpecificDisplayEvent,
+ };
+ 
+ typedef NS_OPTIONS(NSUInteger, NSEventModifierFlags) {
++    NSEventModifierFlagCapsLock = 1 << 16,
++    NSEventModifierFlagShift = 1 << 17,
++    NSEventModifierFlagControl = 1 << 18,
++    NSEventModifierFlagOption = 1 << 19,
++    NSEventModifierFlagCommand = 1 << 20,
++    NSEventModifierFlagNumericPad = 1 << 21,
++    NSEventModifierFlagHelp = 1 << 22,
++    NSEventModifierFlagFunction = 1 << 23,
++    NSEventModifierFlagDeviceIndependentFlagsMask = 0xffff0000UL,
+     NSAlphaShiftKeyMask = 1 << 16,
+     NSShiftKeyMask = 1 << 17,
+     NSControlKeyMask = 1 << 18,
+diff --git a/CoreGraphics/include/CoreGraphics/CGRemoteOperation.h b/CoreGraphics/include/CoreGraphics/CGRemoteOperation.h
+index d3230e26..0f7fdea2 100644
+--- a/CoreGraphics/include/CoreGraphics/CGRemoteOperation.h
++++ b/CoreGraphics/include/CoreGraphics/CGRemoteOperation.h
+@@ -23,6 +23,7 @@
+ #import <CoreGraphics/CGGeometry.h>
+ 
+ #include <CoreGraphics/CGError.h>
++#include <CoreGraphics/CoreGraphicsExport.h>
+ #include <mach/boolean.h>
+ #include <stdint.h>
+ 
+@@ -61,16 +62,16 @@ typedef void (*CGScreenRefreshCallback)(uint32_t count, const CGRect *rects, voi
+ #define kCGEventFilterMaskPermitAllEvents (kCGEventFilterMaskPermitLocalMouseEvents | kCGEventFilterMaskPermitLocalKeyboardEvents | kCGEventFilterMaskPermitSystemDefinedEvents)
+ 
+ // TODO: All those deprecated functions
+-extern CGError CGScreenRegisterMoveCallback(CGScreenUpdateMoveCallback callback, void *userInfo);
+-extern void CGScreenUnregisterMoveCallback(CGScreenUpdateMoveCallback callback, void *userInfo);
++COREGRAPHICS_EXPORT CGError CGScreenRegisterMoveCallback(CGScreenUpdateMoveCallback callback, void *userInfo);
++COREGRAPHICS_EXPORT void CGScreenUnregisterMoveCallback(CGScreenUpdateMoveCallback callback, void *userInfo);
+ 
+-CGError CGRegisterScreenRefreshCallback(CGScreenRefreshCallback callback, void *userInfo);
+-void CGUnregisterScreenRefreshCallback(CGScreenRefreshCallback callback, void *userInfo);
+-CGError CGWaitForScreenRefreshRects(CGRect * _Nullable *rects, uint32_t *count);
+-void CGReleaseScreenRefreshRects(CGRect *rects);
+-CGError CGWaitForScreenUpdateRects(CGScreenUpdateOperation requestedOperations, CGScreenUpdateOperation *currentOperation, CGRect * _Nullable *rects, size_t *rectCount, CGScreenUpdateMoveDelta *delta);
++COREGRAPHICS_EXPORT CGError CGRegisterScreenRefreshCallback(CGScreenRefreshCallback callback, void *userInfo);
++COREGRAPHICS_EXPORT void CGUnregisterScreenRefreshCallback(CGScreenRefreshCallback callback, void *userInfo);
++COREGRAPHICS_EXPORT CGError CGWaitForScreenRefreshRects(CGRect * _Nullable *rects, uint32_t *count);
++COREGRAPHICS_EXPORT void CGReleaseScreenRefreshRects(CGRect *rects);
++COREGRAPHICS_EXPORT CGError CGWaitForScreenUpdateRects(CGScreenUpdateOperation requestedOperations, CGScreenUpdateOperation *currentOperation, CGRect * _Nullable *rects, size_t *rectCount, CGScreenUpdateMoveDelta *delta);
+ 
+-CGError CGWarpMouseCursorPosition(CGPoint newCursorPosition);
+-CGError CGAssociateMouseAndMouseCursorPosition(boolean_t connected);
++COREGRAPHICS_EXPORT CGError CGWarpMouseCursorPosition(CGPoint newCursorPosition);
++COREGRAPHICS_EXPORT CGError CGAssociateMouseAndMouseCursorPosition(boolean_t connected);
+ 
+ #endif
+diff --git a/QuartzCore/include/QuartzCore/CAMetalLayer.h b/QuartzCore/include/QuartzCore/CAMetalLayer.h
+index b8168c50..f740bba6 100644
+--- a/QuartzCore/include/QuartzCore/CAMetalLayer.h
++++ b/QuartzCore/include/QuartzCore/CAMetalLayer.h
+@@ -23,7 +23,7 @@
+ #import <CoreGraphics/CoreGraphics.h>
+ #import <Foundation/Foundation.h>
+ 
+-@protocol CAMetalDrawable;
++#import <QuartzCore/CAMetalDrawable.h>
+ 
+ struct _CAMetalLayerPrivate;
+ 

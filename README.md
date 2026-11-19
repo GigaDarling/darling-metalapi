@@ -4,10 +4,34 @@
 Indium и Vulkan. Компиляция MSL из исходного текста через mslc, сложные 3D-модели,
 анимация и проверка результата чтением пикселей с GPU.
 
-![Сложная glTF-модель в настоящем окне Darling Metal](docs/media/model-window.png)
+![Vuron в настоящем окне Darling Metal](docs/media/vuron-window.png)
 
-**[Скриншот модели](docs/media/model-window.png)** ·
+**[Скриншот игры](docs/media/vuron-window.png)** ·
 **[Сборки и видео в Releases](https://github.com/GigaDarling/darling-metalapi/releases)**
+
+## Новое в v0.7.0: игра Vuron с Metal-рендерером
+
+[Vuron](https://github.com/VanadiumVox/Vuron) — открытый MIT-проект: 3D-песочница
+с быстрым перемещением, прыжками, крюком, ракетами и парированием. Собраны
+оригинальные C++-игра, Metal-рендерер, шейдер и карта. Это GPU-рендеринг
+геометрии через Darling → Metal → Indium → Vulkan.
+
+```sh
+python3 run.py vuron-window \
+  --darling-prefix work/darling/build/metal-baseline/prefix \
+  --demo work/darling/build/metal-baseline/darling/src/tools/vuron/vuron.app/Contents/MacOS/vuron-game \
+  --icd /usr/share/vulkan/icd.d/intel_icd.json
+```
+
+В готовом комплекте игру можно запустить без `--demo`. Клик захватывает мышь,
+**Escape** освобождает; **WASD** — движение, мышь — обзор, **Space** — прыжок,
+**ЛКМ** — крюк/выстрел, удержание **G** — смена оружия. Пользователь подтвердил
+управление и картинку. Игра сохраняет свой исходный ретро-стиль.
+
+Для неё добавлены общие `dfdx`/`dfdy` в mslc и исправлены объявления AppKit,
+QuartzCore и CoreGraphics. Проверка производных: по **43 200 значений** на Intel
+и lavapipe, ноль расхождений; отрицательный контроль обнаруживает ошибку оси.
+[Исходники, адаптации, управление и проверки](demo/vuron/README.md).
 
 ## Новое в v0.6.0: сложная 3D-модель glTF
 

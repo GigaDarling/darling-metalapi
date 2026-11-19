@@ -214,3 +214,25 @@ license; no WAD or stale running executable is present.
 - Source glTF/GLB conversion is host-side; guest loading uses the documented
   pack. Static opaque triangles are supported; refraction, skins, morphs,
   animation playback, sparse accessors and full material extensions are not.
+
+## v0.7.0 Vuron
+
+Vuron bfced3abaf1b579051a060d144ab4d706551075c is a clean, pinned MIT dependency.
+Its original shader initially failed on unsupported dfdx; after adding general
+fragment derivatives it compiles and passes SPIR-V validation. The C++/ObjC++
+Mach-O application builds with generated platform adaptations; upstream shader,
+geometry, textures, collision and weapons are retained.
+
+48 derivative/fwidth probes pass, including new float and half scalar/vector
+forms and illegal stage/type/arity cases. Independent review found no blocker
+in the float32 path; its requested produced-value and half lowering coverage
+were added. Native Apple half precision parity remains unmeasured.
+
+Intel and lavapipe each pass 43,200 RGBA32Float produced-value comparisons for
+independent x/y-linear functions with distinct lane slopes, including dfdy sign
+and fwidth. An axis-swap mutant fails 14,400 comparisons on each driver.
+
+The actual Intel desktop window was captured and visually checked. The user
+confirmed movement, mouse look, jumping, weapons and picture. Xvfb/lavapipe
+window captures are black for both this game and the known model viewer;
+these captures are not claimed as successful windowed validation.

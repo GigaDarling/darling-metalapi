@@ -105,3 +105,15 @@ or framework implementation is introduced. Provenance: public Metal/MetalKit/
 AppKit contracts, the Khronos glTF 2.0 specification, and the licensed sample.
 No Apple binary inspection or restricted source was used. Development was
 assisted by OpenAI Codex. Source and binary distributions retain this notice.
+
+## Vuron in v0.7.0
+
+- Source: https://github.com/VanadiumVox/Vuron
+- Revision: bfced3abaf1b579051a060d144ab4d706551075c.
+- MIT, Copyright (c) 2026 Varun Verma. The binary package retains the complete
+  original source under source/Vuron, including LICENSE and stb_image's
+  embedded MIT/public-domain license. Source builds fetch this dependency.
+- Original renderer, shader, game logic and map are used. Generated platform
+  adaptations are listed in demo/vuron/README.md; upstream files stay intact.
+- General compatibility changes follow public MSL/SPIR-V and framework contracts.
+  No restricted Apple source or Apple binary analysis was used.

@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
                                      "cube-offscreen", "cube-window", "cube-window-test",
                                      "textures-offscreen", "textures-window", "textures-window-test",
-                                     "model-window", "model-offscreen", "doom-window", "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
+                                     "vuron-window", "vuron-derivatives", "model-window", "model-offscreen", "doom-window", "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
 parser.add_argument("--darling-prefix", required=True, type=Path)
 parser.add_argument("--demo", type=Path, default=None)
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
@@ -22,6 +22,14 @@ parser.add_argument("--wad", type=Path, help="external DOOM IWAD for doom-window
 parser.add_argument("--state-dir", type=Path, help="persistent Doom configuration/save directory")
 parser.add_argument("--engine-args", nargs=argparse.REMAINDER, default=[], help="extra Doom options; must be last")
 args = parser.parse_args()
+
+if args.mode.startswith("vuron-"):
+    helper = ROOT / "demo/vuron/run.py"
+    if not helper.is_file(): helper = ROOT / "source/demo/vuron/run.py"
+    app = args.demo or ROOT / ("bin/vuron.app/Contents/MacOS/vuron-game" if args.mode == "vuron-window" else "bin/metal-derivatives-test")
+    command = [os.sys.executable, str(helper), "--darling-prefix", str(args.darling_prefix), "--app", str(app)]
+    if args.icd: command += ["--icd", str(args.icd)]
+    raise SystemExit(subprocess.call(command))
 
 if args.mode.startswith("model-"):
     helper = ROOT / "demo/model/run.py"

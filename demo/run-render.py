@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("mode", choices=["offscreen", "window", "window-test", "shapes-offscreen", "shapes-window", "shapes-window-test",
                                      "cube-offscreen", "cube-window", "cube-window-test",
                                      "textures-offscreen", "textures-window", "textures-window-test",
-                                     "model-window", "model-offscreen", "doom-window", "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
+                                     "vuron-window", "vuron-derivatives", "model-window", "model-offscreen", "doom-window", "apple-window", "apple-window-test", "apple-library-test", "apple-menu-test", "apple-menu-raw-test", "apple-menu-alert-test"])
 parser.add_argument("--icd", type=Path, help="Vulkan ICD matching the desktop OpenGL GPU")
 parser.add_argument("--output", type=Path, help="PPM output; defaults to offscreen.ppm or shapes.ppm in results")
 parser.add_argument("--model", type=Path, help="prepared model pack for the 3D viewer")
@@ -19,6 +19,14 @@ parser.add_argument("--wad", type=Path, help="external DOOM IWAD for doom-window
 parser.add_argument("--state-dir", type=Path, help="persistent Doom configuration/save directory")
 parser.add_argument("--engine-args", nargs=argparse.REMAINDER, default=[], help="extra Doom options; must be last")
 args = parser.parse_args()
+
+if args.mode.startswith("vuron-"):
+    lab = root / "build/metal-baseline"
+    app = lab / ("darling/src/tools/vuron/vuron.app/Contents/MacOS/vuron-game" if args.mode == "vuron-window" else "darling/src/tools/vuron/metal-derivatives-test")
+    command = [os.sys.executable, str(root / "tools/metal-baseline/vuron/run.py"),
+               "--darling-prefix", str(lab / "prefix"), "--app", str(app)]
+    if args.icd: command += ["--icd", str(args.icd)]
+    raise SystemExit(subprocess.call(command))
 
 if args.mode.startswith("model-"):
     lab = root / "build/metal-baseline"
